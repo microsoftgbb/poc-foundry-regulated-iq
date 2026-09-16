@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "accountName": { "type": "string" },
+    "projectName": { "type": "string", "defaultValue": "proj-pna-demo" },
+    "location": { "type": "string", "defaultValue": "eastus2" },
+    "modelName": { "type": "string", "defaultValue": "gpt-4.1-mini" },
+    "modelVersion": { "type": "string", "defaultValue": "2025-04-14" },
+    "capacity": { "type": "int", "defaultValue": 50 }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2025-06-01",
+      "name": "[parameters('accountName')]",
+      "location": "[parameters('location')]",
+      "kind": "AIServices",
+      "sku": { "name": "S0" },
+      "identity": { "type": "SystemAssigned" },
+      "properties": {
+        "allowProjectManagement": true,
+        "customSubDomainName": "[parameters('accountName')]",
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": true,
+        "networkAcls": { "defaultAction": "Allow", "virtualNetworkRules": [], "ipRules": [] }
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/projects",
+      "apiVersion": "2025-06-01",
+      "name": "[format('{0}/{1}', parameters('accountName'), parameters('projectName'))]",
+      "location": "[parameters('location')]",
+      "identity": { "type": "SystemAssigned" },
+      "properties": {},
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2025-06-01",
+      "name": "[format('{0}/{1}', parameters('accountName'), parameters('modelName'))]",
+      "sku": { "name": "GlobalStandard", "capacity": "[parameters('capacity')]" },
+      "properties": {
+        "model": {
+          "format": "OpenAI",
+          "name": "[parameters('modelName')]",
+          "version": "[parameters('modelVersion')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('accountName'), parameters('projectName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "accountEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))).endpoint]"
+    },
+    "projectEndpoint": {
+      "type": "string",
+      "value": "[format('https://{0}.services.ai.azure.com/api/projects/{1}', parameters('accountName'), parameters('projectName'))]"
+    },
+    "accountId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"
+    }
+  }
+}

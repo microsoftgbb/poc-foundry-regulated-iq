@@ -1,0 +1,551 @@
+{
+ "type": "excalidraw",
+ "version": 2,
+ "source": "scout",
+ "elements": [
+  {
+   "type": "text",
+   "id": "a_title",
+   "x": 40,
+   "y": 30,
+   "width": 1100,
+   "height": 65.0,
+   "text": "AFTER  \u00b7  activity.enable_m365_public_endpoint = true",
+   "fontSize": 26,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "text",
+   "id": "a_sub",
+   "x": 40,
+   "y": 78,
+   "width": 1200,
+   "height": 37.5,
+   "text": "One property on the agent endpoint. No APIM, no App Gateway, no proxy container app. The agent never leaves the VNet.",
+   "fontSize": 15,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_pub",
+   "x": 30,
+   "y": 140,
+   "width": 470,
+   "height": 210,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "strokeStyle": "dashed"
+  },
+  {
+   "type": "text",
+   "id": "a_publbl",
+   "x": 48,
+   "y": 150,
+   "width": 300,
+   "height": 35.0,
+   "text": "Public internet",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_teams",
+   "x": 60,
+   "y": 190,
+   "width": 190,
+   "height": 110,
+   "strokeColor": "#0078D4",
+   "backgroundColor": "#CFE4FA",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_teams_t"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "a_teams_t",
+   "containerId": "a_teams",
+   "x": 70,
+   "y": 200,
+   "width": 170,
+   "height": 70.0,
+   "text": "Microsoft Teams\n/  M365 Copilot",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "center",
+   "verticalAlign": "middle"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_bot",
+   "x": 290,
+   "y": 190,
+   "width": 190,
+   "height": 110,
+   "strokeColor": "#5C2D91",
+   "backgroundColor": "#E8DAEF",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_bot_t"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "a_bot_t",
+   "containerId": "a_bot",
+   "x": 300,
+   "y": 200,
+   "width": 170,
+   "height": 80.0,
+   "text": "Azure\nBot Service",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "center",
+   "verticalAlign": "middle"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_edge",
+   "x": 545,
+   "y": 140,
+   "width": 250,
+   "height": 210,
+   "strokeColor": "#107C10",
+   "backgroundColor": "transparent",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   }
+  },
+  {
+   "type": "text",
+   "id": "a_edgelbl",
+   "x": 560,
+   "y": 150,
+   "width": 240,
+   "height": 35.0,
+   "text": "Foundry-managed",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_act",
+   "x": 565,
+   "y": 190,
+   "width": 210,
+   "height": 110,
+   "strokeColor": "#107C10",
+   "backgroundColor": "#DFF6DD",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_act_t"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "a_act_t",
+   "containerId": "a_act",
+   "x": 575,
+   "y": 200,
+   "width": 190,
+   "height": 97.5,
+   "text": "Activity Protocol\nroute\nsource-IP filtered",
+   "fontSize": 13,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "center",
+   "verticalAlign": "middle"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_vnet",
+   "x": 850,
+   "y": 140,
+   "width": 510,
+   "height": 210,
+   "strokeColor": "#0078D4",
+   "backgroundColor": "transparent",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   }
+  },
+  {
+   "type": "text",
+   "id": "a_vnetlbl",
+   "x": 868,
+   "y": 150,
+   "width": 460,
+   "height": 35.0,
+   "text": "Customer VNet  \u00b7  public network access DISABLED",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_agent",
+   "x": 880,
+   "y": 190,
+   "width": 220,
+   "height": 110,
+   "strokeColor": "#107C10",
+   "backgroundColor": "#DFF6DD",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_agent_t"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "a_agent_t",
+   "containerId": "a_agent",
+   "x": 890,
+   "y": 200,
+   "width": 200,
+   "height": 80.0,
+   "text": "Foundry\nAgent",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "center",
+   "verticalAlign": "middle"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_pe",
+   "x": 1150,
+   "y": 190,
+   "width": 180,
+   "height": 110,
+   "strokeColor": "#0078D4",
+   "backgroundColor": "#CFE4FA",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_pe_t"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "a_pe_t",
+   "containerId": "a_pe",
+   "x": 1160,
+   "y": 200,
+   "width": 160,
+   "height": 70.0,
+   "text": "Private\nendpoint",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "center",
+   "verticalAlign": "middle"
+  },
+  {
+   "type": "arrow",
+   "id": "a_a1",
+   "x": 250,
+   "y": 245,
+   "width": 40,
+   "height": 0,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     40,
+     0
+    ]
+   ],
+   "roundness": {
+    "type": 2
+   },
+   "endArrowhead": "arrow",
+   "startBinding": {
+    "elementId": "a_teams",
+    "focus": 0,
+    "gap": 2
+   },
+   "endBinding": {
+    "elementId": "a_bot",
+    "focus": 0,
+    "gap": 2
+   }
+  },
+  {
+   "type": "arrow",
+   "id": "a_a2",
+   "x": 480,
+   "y": 245,
+   "width": 85,
+   "height": 0,
+   "strokeColor": "#107C10",
+   "backgroundColor": "transparent",
+   "strokeWidth": 3,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     85,
+     0
+    ]
+   ],
+   "roundness": {
+    "type": 2
+   },
+   "endArrowhead": "arrow",
+   "startBinding": {
+    "elementId": "a_bot",
+    "focus": 0,
+    "gap": 2
+   },
+   "endBinding": {
+    "elementId": "a_act",
+    "focus": 0,
+    "gap": 2
+   }
+  },
+  {
+   "type": "arrow",
+   "id": "a_a3",
+   "x": 775,
+   "y": 245,
+   "width": 105,
+   "height": 0,
+   "strokeColor": "#107C10",
+   "backgroundColor": "transparent",
+   "strokeWidth": 3,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     105,
+     0
+    ]
+   ],
+   "roundness": {
+    "type": 2
+   },
+   "endArrowhead": "arrow",
+   "startBinding": {
+    "elementId": "a_act",
+    "focus": 0,
+    "gap": 2
+   },
+   "endBinding": {
+    "elementId": "a_agent",
+    "focus": 0,
+    "gap": 2
+   }
+  },
+  {
+   "type": "rectangle",
+   "id": "a_blocked",
+   "x": 545,
+   "y": 400,
+   "width": 250,
+   "height": 120,
+   "strokeColor": "#D13438",
+   "backgroundColor": "#FDE7E9",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_blocked_t"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "a_blocked_t",
+   "containerId": "a_blocked",
+   "x": 555,
+   "y": 410,
+   "width": 230,
+   "height": 97.5,
+   "text": "Responses  \u00b7  Invocations\nA2A  \u00b7  MCP\nProject mgmt APIs",
+   "fontSize": 13,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "center",
+   "verticalAlign": "middle"
+  },
+  {
+   "type": "text",
+   "id": "a_blk",
+   "x": 280,
+   "y": 425,
+   "width": 250,
+   "height": 35.0,
+   "text": "From the public internet:",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "text",
+   "id": "a_403",
+   "x": 380,
+   "y": 465,
+   "width": 200,
+   "height": 70.0,
+   "text": "403",
+   "fontSize": 28,
+   "fontFamily": 1,
+   "strokeColor": "#D13438",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "arrow",
+   "id": "a_a4",
+   "x": 795,
+   "y": 460,
+   "width": 85,
+   "height": 140,
+   "strokeColor": "#D13438",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     85,
+     -140
+    ]
+   ],
+   "roundness": {
+    "type": 2
+   },
+   "endArrowhead": "arrow",
+   "strokeStyle": "dashed"
+  },
+  {
+   "type": "text",
+   "id": "a_privonly",
+   "x": 850,
+   "y": 465,
+   "width": 460,
+   "height": 35.0,
+   "text": "reachable ONLY over the private endpoint",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "left",
+   "verticalAlign": "top"
+  },
+  {
+   "type": "rectangle",
+   "id": "a_key",
+   "x": 30,
+   "y": 560,
+   "width": 1330,
+   "height": 120,
+   "strokeColor": "#F7630C",
+   "backgroundColor": "#FFF4CE",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_key_t"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "a_key_t",
+   "containerId": "a_key",
+   "x": 40,
+   "y": 570,
+   "width": 1310,
+   "height": 70.0,
+   "text": "Authorization is unchanged:  keep  Entra  +  BotServiceRbac (or BotServiceTenant)  in authorization_schemes.\nSource-IP filtering is defense in depth, not authentication. The PATCH replaces the whole protocol_configuration and authorization_schemes bags.",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "strokeColor": "#000000",
+   "textAlign": "center",
+   "verticalAlign": "middle"
+  }
+ ],
+ "appState": {
+  "viewBackgroundColor": "#ffffff"
+ }
+}

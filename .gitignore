@@ -1,0 +1,35 @@
+# Local variable files - may contain tenant IDs, subscription IDs, resource names
+scripts/00-variables.ps1
+*.local.ps1
+*.local.json
+
+# Azure / auth artifacts
+*.azureauth
+*.pfx
+*.pem
+*.key
+.azure/
+azure.env
+.env
+.env.*
+
+# Terraform / bicep build output
+*.tfstate
+*.tfstate.*
+.terraform/
+*.bicepparam
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
