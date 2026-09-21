@@ -66,6 +66,11 @@ owning a chain of Azure resources:
 > changes **reachability**, not **authorization**. Requests from an allowed service range must still
 > pass Bot Service or Microsoft Entra token validation, tenant checks and RBAC.
 
+> [!TIP]
+> Need **more than one agent** behind that endpoint? See
+> **[multi-agent/](multi-agent/)** — the same zero-trust posture with a chat-facing orchestrator
+> that delegates to three specialist sub-agents over A2A, entirely inside the VNet.
+
 ---
 
 ## Prerequisites
@@ -279,9 +284,37 @@ scripts/
   07-verify.ps1             Public vs private reachability checks
 diagrams/                   Excalidraw sources + rendered PNGs
 docs/demo-script.md         Customer demo script
+multi-agent/                Multi-agent A2A orchestration behind the same private endpoint
+  README.md                 Architecture, data flow and component diagrams
+  SETUP.md                  Ten-step build + troubleshooting
+  scripts/                  Sub-agents, incoming A2A, connections, orchestrator, publish
+  diagrams/                 Excalidraw sources + rendered PNGs
 ```
 
 Diagram sources are editable at [excalidraw.com](https://excalidraw.com) (or your internal instance).
+
+---
+
+## Going further — more than one agent
+
+This walkthrough publishes a single agent. **[multi-agent/](multi-agent/)** keeps the same
+zero-trust posture and puts a multi-agent system behind it: one chat-facing **orchestrator** that
+delegates to **extractor**, **validator** and **approver** sub-agents over the
+[A2A protocol](https://a2a-protocol.org/latest/). To the user it is one agent in Teams; behind the
+endpoint it is four.
+
+The delegation runs **server-side, inside Foundry** — which is the part that matters. Teams invokes
+the Activity Protocol endpoint, so orchestration living in a local client process would never run.
+
+It also documents two failures that are easy to lose an afternoon to:
+
+- **Publishing rotates the agent identity.** The published agent gets a brand-new identity with no
+  role assignments, and every A2A call then fails with `Failed to fetch agent card: 404` even though
+  the card is fine. The new identity needs **Foundry Agent Consumer** on the project.
+- **Never set an agent card path for a Foundry-agent target.** Foundry resolves its own; supplying
+  one returns `Agent card path is invalid for a Foundry agent`.
+
+Start with **[multi-agent/SETUP.md](multi-agent/SETUP.md)**.
 
 ---
 
