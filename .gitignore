@@ -1,5 +1,5 @@
 # Local variable files - may contain tenant IDs, subscription IDs, resource names
-scripts/00-variables.ps1
+**/00-variables.ps1
 *.local.ps1
 *.local.json
 
@@ -33,3 +33,4 @@ package-lock.json
 __pycache__/
 *.pyc
 .venv/
+
