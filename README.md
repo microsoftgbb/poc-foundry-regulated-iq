@@ -1,7 +1,5 @@
 # Foundry regulated IQ: private Foundry agents in Teams PoC
 
-> **Synthetic data only.** This proof of concept is for synthetic case PDFs. Never upload real filings, real people's names or real tax IDs.
-
 ## Purpose
 
 Officers ask questions in Microsoft Teams about **their own approved case documents** and get answers that cite the document and page. The agents are native Microsoft Foundry prompt agents with a Foundry IQ (Azure AI Search) knowledge base. Officers upload PDFs in the Azure Portal, and an approver releases each document before it can be searched.
@@ -37,25 +35,6 @@ Per-officer agents:
 
 ![Per-officer architecture](docs/diagrams/case-iq-per-officer-architecture.png)
 
-```text
-  Officer (Azure Portal)                 Approver (Azure Portal)
-        | upload PDF                          | Blob index tag approval=approved
-        v                                     v
-  +------------------------------------------------------------+
-  | Upload storage: one container per officer (Entra only)     |
-  +------------------------------+-----------------------------+
-                                 | read version + tag (every 5 minutes)
-  +------------------------------v-----------------------------+
-  | Private VNet                                               |
-  |  Logic App scheduler -> ingestion job (ACI, managed id)    |
-  |    -> Content Understanding custom analyzer                |
-  |    -> evidence store (analysis, approval ledger)           |
-  |    -> AI Search index (per officer, or shared with ACL)    |
-  |  Foundry IQ knowledge base <- Foundry prompt agent         |
-  +------------------------------^-----------------------------+
-                                 | Activity route, BotServiceRbac
-  Officer (Microsoft Teams) -----+
-```
 
 ## Data flows
 
@@ -90,25 +69,6 @@ Per-officer agents:
 - **Document-level security (shared agent).** Search ACLs are evaluated against the caller's token. Without a user token, the index returns no records.
 - **Agent tools.** Each agent has only `knowledge_base_retrieve`, with `require_approval: never`. Its instructions treat document text as evidence, not instructions.
 - **Audit.** Diagnostic settings send Storage, Foundry and scheduler operations to Log Analytics, with no document, prompt or answer text. Search operation logs can include query text. The shared domain isn't covered by the audit template yet.
-
-## Synthetic data only
-
-> **Warning:** use only synthetic data. Treat any real-looking value as an incident.
-
-## Pilot validation checklist
-
-Results from the pilot environment (2026-11-17):
-
-- [x] **Own case answered:** each per-officer agent answers its officer's case with the document and page.
-- [x] **Other officer refused:** each per-officer agent answers "I don't know" for the other officer's case.
-- [x] **Withdrawal:** removing the approval tag removes the evidence from answers; re-approving restores it.
-- [x] **Shared agent, no user token:** a service principal querying the shared index or knowledge base gets 0 documents.
-- [x] **Shared agent, user token:** a test user gets only records whose ACL names that user.
-- [x] **Shared agent, service principal caller:** the agent refuses the call.
-- [x] **Citations:** shared-agent answers link to the source PDF in the Azure Portal, never to the Search endpoint.
-- [x] **Teams:** both a per-officer app and the shared app answer in Teams.
-- [ ] **Shared agent, officers in Teams:** two officers ask about each other's cases. Pass means zero cross-officer results.
-- [ ] **Audit:** extend `audit.bicep` to the shared domain, and review what Search operation logs record.
 
 ## License
 
