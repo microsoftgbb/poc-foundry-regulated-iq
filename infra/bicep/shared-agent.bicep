@@ -548,7 +548,7 @@ resource chatModel 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01'
   name: 'case-chat'
   sku: {
     name: 'Standard'
-    capacity: 10
+    capacity: 50
   }
   properties: {
     model: {
