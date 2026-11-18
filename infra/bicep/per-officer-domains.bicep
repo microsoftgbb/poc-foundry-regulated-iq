@@ -13,20 +13,17 @@ param operatorObjectId string
 param deployFoundry bool = false
 
 var suffix = uniqueString(resourceGroup().id, 'native-iq')
-var officers = [
-  {
-    key: 'a'
-    objectId: '6d1e4626-efe4-44ef-8463-ff0495e3a7f0'
-    container: 'officer-a-pending'
-    subnetPrefix: '10.82.2.0/24'
-  }
-  {
-    key: 'b'
-    objectId: '1e93f7cb-fd9a-4bea-86d1-24840e859787'
-    container: 'officer-b-pending'
-    subnetPrefix: '10.82.3.0/24'
-  }
-]
+// Officers with a per-officer domain come from the officer registry.
+var subnetPrefixes = {
+  a: '10.82.2.0/24'
+  b: '10.82.3.0/24'
+}
+var officers = [for officer in filter(loadJsonContent('../../config/officers.json').officers, o => contains(o, 'optionA') && o.optionA): {
+  key: officer.key
+  objectId: officer.objectId
+  container: officer.container
+  subnetPrefix: subnetPrefixes[officer.key]
+}]
 
 resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
   name: uploadVnetName

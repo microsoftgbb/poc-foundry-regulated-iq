@@ -12,7 +12,7 @@ All data-plane configuration runs inside the VNet in an Azure Container Instance
 
 ## 1. Set the officers
 
-Edit `config/officers.json`. Each officer has a `key`, `displayName`, `objectId` and a `container` named `officer-<key>-pending`. Entries with `"optionA": true` also get a per-officer domain.
+Edit `config/officers.json`. Each officer has a `key`, `displayName`, `objectId` and a `container` named after the officer, for example `aadik`. Entries with `"optionA": true` also get a per-officer domain.
 
 ## 2. Deploy the infrastructure
 
@@ -111,7 +111,7 @@ az container show -g $RG -n regiq-ingest-<suffix>-job --query containers[0].inst
 
 | Task | How |
 |---|---|
-| Upload | Azure Portal → storage account → **Containers** → own `officer-<key>-pending` → **Upload** |
+| Upload | Azure Portal → storage account → **Containers** → own container (for example `aadik`) → **Upload** |
 | Approve | Open the PDF → **Blob index tags** → add `approval` = `approved` |
 | Withdraw | Remove or change the tag, delete the PDF, or upload a new version |
 | Process now | Open the scheduler Logic App → **Run trigger** |

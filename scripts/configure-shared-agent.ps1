@@ -285,7 +285,7 @@ if ('test' -in $steps) {
     if ('configure' -in $steps) { Start-Sleep -Seconds 150 }
     $canaryId = 'regiq-isolation-canary'
     $canary = 'REGIQCANARY7731'
-    $forbidden = @('officer-a-pending', 'officer-b-pending', '6037.50', '6,037.50', 'RET-B-4402', '4000.00', '4,000.00')
+    $forbidden = @('aadik%2F', 'andrel%2F', '/aadik/', '/andrel/', '6037.50', '6,037.50', 'RET-B-4402', '4000.00', '4,000.00')
     $userHeader = @{ 'x-ms-query-source-authorization' = $env:OPERATOR_SEARCH_TOKEN }
     $results = [ordered] @{}
     function Add-Result([string] $Name, [bool] $Pass, [string] $Detail) {
@@ -318,7 +318,7 @@ if ('test' -in $steps) {
     $total = [int] $elevated.Data.'@odata.count'
     $officerDocs = @($elevated.Data.value | Where-Object { $_.id -ne $canaryId }).Count
     Add-Result 'T0-index-populated' ($officerDocs -gt 0) "elevated admin read sees $total documents ($officerDocs officer records)"
-    $portalPattern = '^' + [Regex]::Escape($portalBlobBase) + 'officer-[ab]-pending%2F[^/#?]+\.[pP][dD][fF]/isDeleted~/false/tabToload~/0$'
+    $portalPattern = '^' + [Regex]::Escape($portalBlobBase) + '(' + (($cfg.officerContainers | ForEach-Object { [Regex]::Escape($_) }) -join '|') + ')%2F[^/#?]+\.[pP][dD][fF]/isDeleted~/false/tabToload~/0$'
     $badPortal = @($elevated.Data.value | Where-Object { $_['id'] -ne $canaryId -and
         -not ([string] $_['portal_url'] -cmatch $portalPattern) })
     Add-Result 'T8-portal-url-populated' ($officerDocs -gt 0 -and $badPortal.Count -eq 0) `

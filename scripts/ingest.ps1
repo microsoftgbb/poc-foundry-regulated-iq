@@ -29,7 +29,7 @@ $bindings = @{}
 $containers = @{}
 foreach ($officer in $officers) {
     if ($officer.objectId -notmatch '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$' -or
-        $officer.container -notmatch '^officer-[a-z0-9]{1,30}-pending$' -or
+        $officer.container -notmatch '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$' -or
         $bindings.ContainsKey($officer.objectId) -or $containers.ContainsKey($officer.container)) {
         throw 'Invalid or duplicate officer registry entry.'
     }

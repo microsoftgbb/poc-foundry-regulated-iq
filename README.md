@@ -40,7 +40,7 @@ Per-officer agents:
 
 ### Upload and approval
 
-1. The officer uploads a PDF in the Azure Portal to their own container `officer-<key>-pending`.
+1. The officer uploads a PDF in the Azure Portal to their own container, named after them (for example `aadik`).
 2. Every 5 minutes, a Logic App starts the ingestion job. It sends the current Blob version to the Content Understanding custom analyzer and stores the result. Analysis alone makes nothing searchable.
 3. The approver sets the Blob index tag `approval=approved`. Officers can't read or write tags.
 4. On the next run, the job writes per-page and extracted-field records with the source version, SHA-256, analyzer version and approval ID:

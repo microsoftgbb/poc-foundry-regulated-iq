@@ -105,7 +105,7 @@ resource job 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
             }
             {
               name: 'SHARED_CONFIG'
-              value: string(union(sharedConfig, { officerObjectIds: map(loadJsonContent('../../config/officers.json').officers, o => o.objectId) }))
+              value: string(union(sharedConfig, { officerObjectIds: map(loadJsonContent('../../config/officers.json').officers, o => o.objectId), officerContainers: map(loadJsonContent('../../config/officers.json').officers, o => o.container) }))
             }
             {
               name: 'SHARED_ANALYZER'
