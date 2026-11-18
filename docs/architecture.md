@@ -61,6 +61,7 @@ Officer membership comes from `config/officers.json`:
 - The index has `permissionFilterOption=enabled`. Search builds the permission filter from the token in `x-ms-query-source-authorization`.
 - The agent's `UserEntraToken` connection supplies the signed-in user's token. A request without a user token returns no records, and a service principal calling the agent is refused.
 - Search has local authentication disabled, so no API key can bypass the filter.
+- Tested in Teams on 2026-11-18 with two officers, using own-case, other-officer and adversarial prompts. Each officer saw only their own cases.
 
 ## Citations
 
