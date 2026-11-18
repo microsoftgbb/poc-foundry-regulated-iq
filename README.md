@@ -13,6 +13,27 @@ Includes ARM/Bicep templates, seven numbered PowerShell scripts, and a
 
 ---
 
+## Tax officer PDF-chat adaptation
+
+See [the revised architecture](docs/tax-officer-architecture.md) and
+[diagram](diagrams/tax-officer-architecture.svg)
+([editable Excalidraw](diagrams/tax-officer-architecture.excalidraw)).
+Also available as [PNG](diagrams/tax-officer-architecture.png) and
+[editable draw.io](diagrams/tax-officer-architecture.drawio), using the
+original Regulated IQ Azure architecture diagram style.
+See [Caldova deployment and live foundation test results](docs/caldova-deployment.md).
+This design separates Azure Portal PDF uploads from Teams chat and requires
+per-officer authorization for both source documents and derived retrieval data.
+The Blob upload foundation is deployed with public network connectivity and
+Entra-only data access. The target uses native Foundry Activity publishing,
+officer-isolated AI Search and private authorization/extraction tools.
+No Container Apps hosting is part of this design. The two-officer pilot is
+deployed and verified end to end; see the deployment report for the runbook.
+Option B, one shared agent whose retrieval is trimmed per officer by native
+Search document ACLs and the officer's own token, is deployed alongside it:
+see [option B](docs/option-b-shared-agent.md) and its
+[fallback design](docs/option-b-fallback-custom-engine-agent.md).
+
 ## The problem
 
 Teams and Microsoft 365 Copilot do not support private networking. They require the agent endpoints

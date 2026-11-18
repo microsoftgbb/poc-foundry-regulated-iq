@@ -1,0 +1,51 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Segoe UI, Helvetica, Arial", "fontSize": "15px", "primaryColor": "#EEF2FF", "primaryBorderColor": "#5B5FC7", "primaryTextColor": "#1F2937", "actorBkg": "#EEF2FF", "actorBorder": "#5B5FC7", "actorTextColor": "#1F2937", "signalColor": "#374151", "signalTextColor": "#111827", "noteBkgColor": "#FFF7E6", "noteBorderColor": "#F0B44C", "activationBkgColor": "#E0E7FF", "sequenceNumberColor": "#FFFFFF"}}}%%
+sequenceDiagram
+    autonumber
+    title Case IQ - from officer upload to answer in Teams (Officer A)
+
+    actor Officer as Officer A (Aadi)
+    actor Approver as Approver (admin)
+    participant Blob as Case Blob<br/>officer-a-pending
+    participant Logic as Logic App<br/>every 5 min
+    participant Job as Private ingestion job
+    participant CU as Content Understanding<br/>custom analyzer
+    participant Evidence as Officer A<br/>evidence storage
+    participant Search as Foundry IQ<br/>Officer A index + KB
+    participant Teams as Microsoft Teams
+    participant Agent as Foundry agent<br/>Case IQ - Officer A
+
+    rect rgb(240, 245, 255)
+    Note over Officer,Evidence: Upload and analysis
+    Officer->>Blob: Upload case-a-receipt.pdf (Azure Portal)
+    Logic->>Job: Start reconcile (job idle)
+    Job->>Blob: Read new PDF version
+    Job->>CU: Analyze exact version (in geography)
+    CU-->>Job: Page text + fields (receipt no., amounts, dates)
+    Job->>Evidence: Save analysis - awaiting approval
+    end
+
+    rect rgb(255, 248, 235)
+    Note over Approver,Blob: Independent approval
+    Approver->>Blob: Set tag approval = approved
+    end
+
+    rect rgb(238, 250, 242)
+    Note over Logic,Search: Publish and private indexing
+    Logic->>Job: Start reconcile
+    Job->>Blob: Read approval tag
+    Job->>Job: Confirm approved version = analyzed version
+    Job->>Evidence: Record approval in ledger
+    Job->>Evidence: Write page + field records (approved, officer, page)
+    Job->>Search: Run private indexer
+    Search-->>Job: Indexed, 0 failures
+    end
+
+    rect rgb(245, 240, 255)
+    Note over Officer,Agent: Chat in Teams
+    Officer->>Teams: "How much was paid on receipt RCPT-A-9120?"
+    Teams->>Agent: Message (Officer A access verified)
+    Agent->>Search: knowledge_base_retrieve
+    Search-->>Agent: Approved Officer A evidence only
+    Agent-->>Teams: "CAD 4,000.00 - case-a-receipt.pdf, page 1"
+    Teams-->>Officer: Answer with source
+    end

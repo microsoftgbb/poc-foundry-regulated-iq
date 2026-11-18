@@ -1,0 +1,20 @@
+{
+  "description": "Single source of truth for Case IQ officers. Each officer uploads only to their own container; the container is what ties an uploaded PDF to the officer's Entra object ID (the Search ACL in option B). Edit, then follow docs/option-b-shared-agent.md > Add an officer.",
+  "groupName": "Case IQ Officers",
+  "officers": [
+    {
+      "key": "a",
+      "displayName": "Aadi Kapoor",
+      "objectId": "6d1e4626-efe4-44ef-8463-ff0495e3a7f0",
+      "container": "officer-a-pending",
+      "optionA": true
+    },
+    {
+      "key": "b",
+      "displayName": "Andre Lawson",
+      "objectId": "1e93f7cb-fd9a-4bea-86d1-24840e859787",
+      "container": "officer-b-pending",
+      "optionA": true
+    }
+  ]
+}

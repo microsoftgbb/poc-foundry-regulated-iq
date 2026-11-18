@@ -1,0 +1,69 @@
+{
+  "description": "Extract evidence explicitly present in an officer's uploaded tax case document. Do not decide approval, access rights, compliance, or guilt.",
+  "baseAnalyzerId": "prebuilt-document",
+  "config": {
+    "returnDetails": true,
+    "enableOcr": true,
+    "enableLayout": true,
+    "tableFormat": "markdown",
+    "estimateFieldSourceAndConfidence": true
+  },
+  "models": {
+    "completion": "gpt-5.1",
+    "embedding": "text-embedding-3-small"
+  },
+  "fieldSchema": {
+    "name": "OfficerCaseEvidence",
+    "fields": {
+      "DocumentType": {
+        "type": "string",
+        "method": "extract",
+        "estimateSourceAndConfidence": true,
+        "description": "Document type explicitly stated in the document; leave absent when not stated."
+      },
+      "DocumentReference": {
+        "type": "string",
+        "method": "extract",
+        "estimateSourceAndConfidence": true,
+        "description": "Invoice, return, receipt, or other reference number printed on the document."
+      },
+      "DocumentDate": {
+        "type": "date",
+        "method": "extract",
+        "estimateSourceAndConfidence": true,
+        "description": "Issue date explicitly stated on the document."
+      },
+      "TaxPeriod": {
+        "type": "string",
+        "method": "extract",
+        "estimateSourceAndConfidence": true,
+        "description": "Tax period explicitly printed on this document, without inference from other dates."
+      },
+      "Currency": {
+        "type": "string",
+        "method": "extract",
+        "estimateSourceAndConfidence": true,
+        "description": "Currency code or symbol explicitly stated beside the total."
+      },
+      "StatedTotal": {
+        "type": "number",
+        "method": "extract",
+        "estimateSourceAndConfidence": true,
+        "description": "Final document total as printed, without recalculation."
+      },
+      "LineItems": {
+        "type": "array",
+        "description": "Rows explicitly present in the document's item table; do not infer missing rows or values.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "Description": { "type": "string" },
+            "Quantity": { "type": "number" },
+            "UnitPrice": { "type": "number" },
+            "Amount": { "type": "number" }
+          }
+        }
+      }
+    }
+  }
+}
