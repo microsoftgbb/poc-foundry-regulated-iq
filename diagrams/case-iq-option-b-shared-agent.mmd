@@ -1,0 +1,48 @@
+%% Case IQ option B: one shared agent, per-officer document-level security
+flowchart LR
+    classDef officer fill:#E8F1FB,stroke:#2F5597,color:#1F1F1F
+    classDef ingest fill:#FFF4E5,stroke:#C55A11,color:#1F1F1F
+    classDef chat fill:#F0E9FA,stroke:#7030A0,color:#1F1F1F
+    classDef ctrl fill:#F2F2F2,stroke:#7F7F7F,color:#1F1F1F
+
+    REG["infra/officers.json<br/>officer registry<br/>(object ID, container)"]:::ctrl
+    GRP["Entra group<br/>Case IQ Officers"]:::ctrl
+
+    subgraph M365["Microsoft 365"]
+        OFF(["Officer"]):::officer
+        TEAMS["Teams app<br/>Case IQ Shared"]:::chat
+    end
+
+    subgraph UPLOAD["Upload storage (Entra-only)"]
+        CONT["officer-&lt;key&gt;-pending<br/>one container per officer"]:::ingest
+    end
+    APR(["Approver<br/>Blob index tag approval=approved"]):::officer
+
+    subgraph VNET["Private VNet (no public access)"]
+        SCHED["Logic App<br/>every 5 min"]:::ingest
+        JOB["Ingestion job (ACI, managed identity)<br/>owner = container's officer"]:::ingest
+        CU["Content Understanding<br/>shared custom analyzer"]:::ingest
+        EVD["Evidence store<br/>analysis, ledger, pushed IDs"]:::ingest
+        IDX[("AI Search index case-evidence-shared<br/>userIds ACL per record<br/>no API keys")]:::ingest
+        KB["Foundry IQ knowledge base<br/>approved eq true"]:::chat
+        AGENT["Foundry prompt agent caseiq-shared<br/>UserEntraToken connection"]:::chat
+    end
+
+    REG -. members .-> GRP
+    REG -. containers + upload roles .-> CONT
+    REG -. bindings .-> JOB
+
+    OFF -- "1 upload PDF (Azure Portal)" --> CONT
+    APR -- "2 approve" --> CONT
+    SCHED -- start --> JOB
+    JOB -- "3 read version + tag" --> CONT
+    JOB -- analyze --> CU
+    JOB -- record --> EVD
+    JOB -- "4 push records<br/>userIds = [officer]" --> IDX
+
+    OFF -- "5 ask" --> TEAMS
+    TEAMS -- "Activity route<br/>BotServiceRbac" --> AGENT
+    GRP -. "Foundry Agent Consumer<br/>Search Index Data Reader" .-> AGENT
+    AGENT -- "6 knowledge_base_retrieve<br/>with the officer's own token" --> KB
+    KB -- "7 search trimmed to<br/>the officer's records" --> IDX
+    AGENT -- "8 answer + Portal link<br/>to the source PDF" --> TEAMS

@@ -1,380 +1,125 @@
-# Publish a private-networked Foundry Agent to Microsoft Teams — without APIM
+# Case IQ: private Foundry agents in Teams for tax officers
 
-A complete, runnable reference for publishing a **Microsoft Foundry Agent that lives behind a
-private endpoint** to **Microsoft Teams and Microsoft 365 Copilot** — using one property,
-`activity.enable_m365_public_endpoint`, instead of an APIM / App Gateway / proxy-container-app chain.
+Case IQ lets tax officers ask questions in Microsoft Teams about **their own approved case documents** and get answers that cite the source PDF and page. Everything behind Teams is private: Foundry, AI Search, Content Understanding and the evidence stores have public network access disabled, and there are no API keys.
 
-Public network access on the Foundry account stays **disabled**. Only the Activity Protocol route
-is opened to Microsoft 365 traffic, using Foundry-managed source-IP filtering. Everything else —
-Responses, Invocations, A2A, MCP, and the project management APIs — stays private.
+> **Synthetic data only.** This pilot runs in a commercial demo tenant with synthetic PDFs.
 
-Includes ARM/Bicep templates, seven numbered PowerShell scripts, and a
-[12–15 minute customer demo script](docs/demo-script.md).
+Two isolation models are deployed side by side:
 
----
+| | Option A: one agent per officer | Option B: one shared agent (recommended for scale) |
+|---|---|---|
+| Isolation | Each officer has their own Foundry account, Search index and agent | One index; every record carries a native Search ACL (`userIds`), and the agent searches with the signed-in officer's own token |
+| Teams | One app per officer (`Case IQ - Officer A/B`) | One app for everyone (`Case IQ Shared`) |
+| Adding an officer | A new domain: Foundry, Search, Cosmos, Storage and an agent | A line in [`infra/officers.json`](infra/officers.json) plus group membership |
+| Docs | [deployment.md](docs/deployment.md) | [option-b-shared-agent.md](docs/option-b-shared-agent.md) |
 
-## Tax officer PDF-chat adaptation
+Neither option uses API Management or a custom bot. Teams reaches each agent through Foundry's built-in Microsoft 365 Activity route (`enable_m365_public_endpoint` with `BotServiceRbac`), the only public path on the Foundry accounts.
 
-See [the revised architecture](docs/tax-officer-architecture.md) and
-[diagram](diagrams/tax-officer-architecture.svg)
-([editable Excalidraw](diagrams/tax-officer-architecture.excalidraw)).
-Also available as [PNG](diagrams/tax-officer-architecture.png) and
-[editable draw.io](diagrams/tax-officer-architecture.drawio), using the
-original Regulated IQ Azure architecture diagram style.
-See [Caldova deployment and live foundation test results](docs/caldova-deployment.md).
-This design separates Azure Portal PDF uploads from Teams chat and requires
-per-officer authorization for both source documents and derived retrieval data.
-The Blob upload foundation is deployed with public network connectivity and
-Entra-only data access. The target uses native Foundry Activity publishing,
-officer-isolated AI Search and private authorization/extraction tools.
-No Container Apps hosting is part of this design. The two-officer pilot is
-deployed and verified end to end; see the deployment report for the runbook.
-Option B, one shared agent whose retrieval is trimmed per officer by native
-Search document ACLs and the officer's own token, is deployed alongside it:
-see [option B](docs/option-b-shared-agent.md) and its
-[fallback design](docs/option-b-fallback-custom-engine-agent.md).
+## How it works
 
-## The problem
+**Upload and approval (both options)**
+1. An officer uploads a PDF in the Azure Portal to their own container (`officer-<key>-pending`). They can't read or write anyone else's container.
+2. Every 5 minutes, a Logic App starts a private ingestion job (Azure Container Instances, managed identity). The job sends the exact Blob version to a Content Understanding custom analyzer.
+3. An independent approver sets the Blob index tag `approval=approved`. Officers can't see or set tags.
+4. The job publishes per-page and extracted-field records to Search:
+   - **Option A:** to the officer's own index, through a private indexer.
+   - **Option B:** to the shared index, with `userIds = [officer object ID]` and a Portal link to the source PDF.
+5. Deleting the PDF, uploading a new version or removing the tag withdraws the records on the next run.
 
-Teams and Microsoft 365 Copilot do not support private networking. They require the agent endpoints
-they invoke to be routable over the public internet. Bridging that gap used to mean building and
-owning a chain of Azure resources:
+**Chat**
+- The officer asks in Teams. The Foundry prompt agent calls its Foundry IQ knowledge base (`knowledge_base_retrieve`) and answers only from the returned evidence, citing the document and page.
+- **Option A:** the agent retrieves with its project identity from the officer's own domain.
+- **Option B:** the agent's `UserEntraToken` connection forwards the officer's own token. With no user token, Search returns nothing.
 
-![Before](diagrams/01-before-apim.png)
+## Diagrams
 
-## The change
+| | |
+|---|---|
+| Option A architecture (as built) | ![Option A](diagrams/case-iq-option-a-architecture.png) |
+| Option B architecture | ![Option B](diagrams/case-iq-option-b-shared-agent.png) |
+| Document lifecycle (upload → approval → indexing → Teams) | ![Sequence](diagrams/case-iq-document-lifecycle-sequence.png) |
+| Officer experience (illustrative) | ![Officer experience](diagrams/case-iq-officer-experience.png) |
 
-![After](diagrams/02-after-m365-endpoint.png)
+Mermaid sources: [`case-iq-option-b-shared-agent.mmd`](diagrams/case-iq-option-b-shared-agent.mmd), [`case-iq-document-lifecycle-sequence.mmd`](diagrams/case-iq-document-lifecycle-sequence.mmd).
 
-```jsonc
-{
-  "agent_endpoint": {
-    "protocol_configuration": {
-      "responses": {},
-      "activity": { "enable_m365_public_endpoint": true }
-    },
-    "authorization_schemes": [
-      { "type": "Entra" },
-      { "type": "BotServiceRbac" }
-    ]
-  }
-}
-```
+## Verified results
 
----
+| Check | Option A | Option B |
+|---|---|---|
+| Own case answered with document and page | PASS (both officers) | PASS (test account) |
+| Other officer's case refused | PASS (both directions) | PASS: other records are never returned |
+| No user identity or a service principal caller | n/a (agent per officer) | PASS: 0 documents; the agent refuses service principals |
+| Withdrawal and re-approval | PASS | Implemented: records deleted by exact ID |
+| Teams | Used by an officer | `Case IQ Shared` works in Teams |
 
-## Scope — set expectations early
-
-**This solves**
-
-- Publishing a Foundry Agent to Teams / M365 Copilot while the Foundry account keeps public network
-  access disabled
-- Removing APIM, Application Gateway and the proxy container app when their *only* job was bridging
-  Microsoft 365 to a private agent
-- Keeping Responses, Invocations, A2A, MCP and project management APIs reachable only over the
-  private endpoint
-
-**This does not solve**
-
-- Making Teams itself private. Teams and Microsoft 365 remain public-network products. No Foundry
-  setting changes that — reset this expectation in the first conversation
-- Custom public-to-private ingress, non-Teams surfaces, or genuine API management. Those are still
-  APIM scenarios
-- Authorization. Source-IP filtering is a network control, not authentication
-
-> [!IMPORTANT]
-> Keep `BotServiceRbac` or `BotServiceTenant` in `authorization_schemes`. The network exception
-> changes **reachability**, not **authorization**. Requests from an allowed service range must still
-> pass Bot Service or Microsoft Entra token validation, tenant checks and RBAC.
-
-> [!TIP]
-> Need **more than one agent** behind that endpoint? See
-> **[multi-agent/](multi-agent/)** — the same zero-trust posture with a chat-facing orchestrator
-> that delegates to three specialist sub-agents over A2A, entirely inside the VNet.
-
----
-
-## Prerequisites
-
-| Requirement | Detail |
-| --- | --- |
-| Azure subscription | With rights to create Cognitive Services / AIServices and Bot Service resources |
-| Existing VNet | With a subnet available for the private endpoint |
-| Roles | **Foundry User** on the project, plus **Azure Bot Service Contributor** (or Contributor/Owner) on the resource group |
-| Jump box | A VM in the VNet, VPN, or ExpressRoute — needed once public access is disabled |
-| Tooling | Azure CLI ≥ 2.60, PowerShell 7+ |
-| Resource provider | `Microsoft.BotService` registered |
-
-> [!NOTE]
-> The Foundry RBAC roles were renamed. **Foundry User / Foundry Owner / Foundry Account Owner /
-> Foundry Project Manager** were previously *Azure AI User / Azure AI Owner / Azure AI Account
-> Owner / Azure AI Project Manager*. In a tenant where the rename has rolled out, the old names
-> fail outright with `Role 'Azure AI User' doesn't exist`.
-
----
-
-## Setup and deploy — full walkthrough
-
-Total time: **~30 minutes**. Steps 1–6 can be run from anywhere; step 7 onward assumes public
-access is disabled, so run those from inside the VNet.
-
-### Step 0 — Clone and configure
-
-```powershell
-git clone https://github.com/sureshpaulraj/foundry-private-agent-teams.git
-cd foundry-private-agent-teams
-
-Copy-Item scripts/00-variables.sample.ps1 scripts/00-variables.ps1
-```
-
-Edit `scripts/00-variables.ps1` with your subscription, tenant, resource group, VNet and a
-**globally unique** Foundry account name. This file is gitignored — it never gets committed.
-
-```powershell
-az login
-az account set --subscription "<your-subscription-id>"
-az provider register --namespace Microsoft.BotService
-```
-
-### Step 1 — Deploy the Foundry account, project and model
-
-```powershell
-az group create -n <resource-group> -l eastus2
-
-az deployment group create -g <resource-group> `
-  --template-file infra/foundry.json `
-  --parameters accountName=<globally-unique-name>
-```
-
-Creates an AIServices account with `allowProjectManagement`, a project, and a `gpt-4.1-mini`
-GlobalStandard deployment. Public network access starts **Enabled** so you can configure the agent;
-step 7 turns it off.
-
-### Step 2 — Grant yourself data-plane access
-
-```powershell
-$scope = az cognitiveservices account show -n <account> -g <rg> --query id -o tsv
-$me    = az ad signed-in-user show --query id -o tsv
-
-foreach ($r in "Foundry User", "Foundry Project Manager") {
-  az role assignment create --assignee-object-id $me --assignee-principal-type User `
-    --role "$r" --scope $scope
-}
-```
-
-Wait a minute or two for the assignments to propagate before the next step.
-
-### Step 3 — Create the agent
-
-```powershell
-./scripts/01-create-agent.ps1
-./scripts/02-get-agent-identity.ps1     # copy the ClientId it prints
-```
-
-> [!TIP]
-> `POST /agents/{name}/versions` requires the agent body wrapped in a **`definition`** object.
-> Omitting it returns `400 invalid_payload — Required property 'definition' is missing`.
-
-### Step 4 — Add the private endpoint and DNS
-
-```powershell
-az network vnet subnet create -g <vnet-rg> --vnet-name <vnet> -n snet-pe `
-  --address-prefixes 10.0.1.0/24
-
-az deployment group create -g <resource-group> `
-  --template-file infra/private-endpoint.json `
-  --parameters accountName=<account> `
-               vnetResourceGroup=<vnet-rg> `
-               vnetName=<vnet> `
-               subnetName=snet-pe
-```
-
-Creates the private endpoint plus the three required zones —
-`privatelink.services.ai.azure.com`, `privatelink.openai.azure.com`,
-`privatelink.cognitiveservices.azure.com` — linked to your VNet.
-
-> [!TIP]
-> `az network private-endpoint create` has no `--vnet-resource-group` flag. When the VNet lives in
-> a different resource group, pass the **full subnet resource ID** to `--subnet`.
-
-### Step 5 — Deploy the Bot Service
-
-```powershell
-./scripts/03-deploy-bot.ps1 -MsaAppId <client-id-from-step-3>
-```
-
-Creates an `azurebot` with `publicNetworkAccess: Disabled`, `msaAppType: SingleTenant`, and the
-Microsoft Teams channel enabled. Its endpoint is the agent's Activity Protocol URL. Copy the
-**Bot ARM ID** it prints.
-
-### Step 6 — Enable the M365 public endpoint, then publish
-
-```powershell
-./scripts/04-enable-m365-endpoint.ps1 -PinVersion -Version 1
-./scripts/05-publish-to-m365.ps1 -BotServiceArmId "<bot-arm-id-from-step-5>"
-```
-
-A successful publish returns a `titleId` and a `teamsAppId`.
-
-> [!WARNING]
-> The PATCH in step 04 **replaces** `protocol_configuration` and `authorization_schemes` wholesale.
-> Every protocol and scheme the endpoint must retain has to be in the body — anything you omit is
-> dropped, including `responses` and `Entra`. The script sends the full set; keep it that way if
-> you customise it.
-
-Match the scheme to the scope you intend to publish with:
-
-| `publishScope` | Visibility | Authorization scheme | Admin approval |
-| --- | --- | --- | --- |
-| `Shared` (or `Personal`) | Only you — under **Your agents** | `BotServiceRbac` | Not required |
-| `Tenant` | Whole org — **Built by your org** | `BotServiceTenant` | Required in M365 admin center |
-
-### Step 7 — Go private and verify
-
-```powershell
-./scripts/06-toggle-public-access.ps1 -Mode Private
-Start-Sleep -Seconds 40
-
-./scripts/07-verify.ps1                # from your laptop  -> expect 403 / 403
-# then from a VM inside the VNet       -> expect 200 / 200
-```
-
-### Step 8 — Confirm in Teams
-
-Open Teams → **Apps** → **Your agents** → your published agent, and ask:
-
-```text
-How are you connected?
-```
-
-It should describe the Foundry-managed Activity Protocol route with no APIM in the path — while
-the Responses protocol is still returning `403` from the public internet.
-
-![Teams proof](diagrams/03-teams-proof.png)
-
----
-
-## What correct looks like
-
-| Test | From public internet | From inside the VNet |
-| --- | --- | --- |
-| DNS resolution | public CNAME chain | → `privatelink` zone → private endpoint IP |
-| TCP 443 | n/a | succeeds to the private endpoint IP |
-| `GET /agents/{name}` | **403** | **200** |
-| `POST .../openai/responses` | **403** | **200** |
-| Teams conversation | **works** | works |
-
-The last row is the point of the pattern: Teams keeps working from the public internet while every
-other public path is closed.
-
----
-
-## Running the demo
-
-See **[docs/demo-script.md](docs/demo-script.md)** — six scenes, 12–15 minutes, with the objection
-handling table for the questions you will actually get.
-
-The strongest live beat is toggling network access mid-demo:
-
-```powershell
-./scripts/06-toggle-public-access.ps1 -Mode Public    # laptop test -> 200
-./scripts/06-toggle-public-access.ps1 -Mode Private   # laptop test -> 403
-```
-
-Teams keeps answering across both, with **no re-publish and no agent change** —
-`enable_m365_public_endpoint` simply goes dormant while public access is on.
-
----
+Officers testing option B against each other in Teams, with adversarial prompts, is the remaining manual check. See [option-b-shared-agent.md](docs/option-b-shared-agent.md#teams-test-manual).
 
 ## Repository layout
 
 ```
 infra/
-  foundry.json              ARM   - Foundry account + project + model deployment
-  private-endpoint.json     ARM   - private endpoint + 3 privatelink DNS zones
-  bot-service.json          ARM   - Azure Bot Service + Teams channel
-  bot-service.bicep         Bicep - equivalent of the above
+  main.bicep, main.parameters.json   Resource group + upload foundation (subscription scope)
+  private-uploads.bicep              Upload storage (Entra-only), VNet, Blob private endpoint
+  officers.json                      Officer registry: object ID, name, upload container
+  officers.bicep                     Per-officer containers + upload roles; group roles (option B)
+  native-iq.bicep                    Option A: one private domain per officer (uses native/domain.bicep)
+  native-iq*.parameters.json         Option A dependency and runtime phases
+  native-shared.bicep                Option B: shared Foundry, Search (ACL), evidence store, roles
+  native-config-network.bicep        NAT, subnet and identity for the private configuration job
+  native-config-job.bicep            Private ACI job that runs the configure scripts
+  native-ingest.bicep                Ingestion job, custom roles, 5-minute Logic App scheduler
+  native-publish-job.bicep           Option A Teams publish/package job
+  native-audit.bicep                 Diagnostic settings (metadata only, no content)
+  native/                            Domain, private endpoint, DNS and role modules
+native/
+  analyzer.json                      Content Understanding custom analyzer schema
+  agent-instructions.txt             Option A agent instructions
 scripts/
-  00-variables.sample.ps1   Copy to 00-variables.ps1 and fill in (gitignored)
-  01-create-agent.ps1       Create the agent and its first version
-  02-get-agent-identity.ps1 Print instance_identity.client_id + activity endpoint
-  03-deploy-bot.ps1         Deploy Bot Service + Teams channel
-  04-enable-m365-endpoint.ps1   <- the PATCH that replaces APIM
-  05-publish-to-m365.ps1    Publish to Teams / M365 Copilot
-  06-toggle-public-access.ps1   Flip PNA on/off for demos
-  07-verify.ps1             Public vs private reachability checks
-diagrams/                   Excalidraw sources + rendered PNGs
-docs/demo-script.md         Customer demo script
-multi-agent/                Multi-agent A2A orchestration behind the same private endpoint
-  README.md                 Architecture, data flow and component diagrams
-  SETUP.md                  Ten-step build + troubleshooting
-  scripts/                  Sub-agents, incoming A2A, connections, orchestrator, publish
-  diagrams/                 Excalidraw sources + rendered PNGs
+  native_iq.py                       Renders option A service definitions (manifests)
+  configure-native-private.ps1       Option A configure, verify, end-to-end tests, Teams package
+  configure-native-shared.ps1        Option B configure, isolation tests (T0–T9), package, publish
+  ingest-native-private.ps1          Upload → analyze → approve → publish/withdraw reconcile
+  publish-native-teams.ps1           Option A Teams publish
+  sync-officer-group.ps1             Creates and syncs the "Case IQ Officers" Entra group
+tests/
+  test_native_iq.py                  Unit tests for the option A definitions
+docs/
+  architecture.md                    Design, security model and decisions
+  deployment.md                      As-built inventory, runbook and option A results
+  option-b-shared-agent.md           Option B as built, tests, runbook, adding officers
+  option-b-shared-agent-research.md  Feasibility research and sources
+  option-b-fallback-custom-engine-agent.md  Fallback design if the Teams token path fails (not built)
+diagrams/                            Architecture and sequence diagrams (PNG, SVG, Mermaid)
 ```
 
-Diagram sources are editable at [excalidraw.com](https://excalidraw.com) (or your internal instance).
+## Deploy and operate
 
----
+The deployment order, commands and day-to-day runbook (upload, approve, chat, add an officer) are in [deployment.md](docs/deployment.md) and [option-b-shared-agent.md](docs/option-b-shared-agent.md#runbook). In short:
 
-## Going further — more than one agent
+1. `infra/main.bicep`: upload foundation.
+2. `infra/native-iq.bicep`: option A domains. Then `infra/native-shared.bicep`: option B. Both deploy in two phases, `deployFoundry=false` then `true`.
+3. `infra/native-config-network.bicep`, then `infra/native-config-job.bicep`: configure analyzers, indexes, knowledge bases, connections and agents from inside the VNet.
+4. `scripts/sync-officer-group.ps1`, then `infra/officers.bicep`: officer access.
+5. `infra/native-ingest.bicep` and `infra/native-audit.bicep`: ingestion schedule and audit.
+6. Publish to Microsoft 365, then upload the Teams app package in the Teams admin center and assign it to the officers or the group.
 
-This walkthrough publishes a single agent. **[multi-agent/](multi-agent/)** keeps the same
-zero-trust posture and puts a multi-agent system behind it: one chat-facing **orchestrator** that
-delegates to **extractor**, **validator** and **approver** sub-agents over the
-[A2A protocol](https://a2a-protocol.org/latest/). To the user it is one agent in Teams; behind the
-endpoint it is four.
-
-The delegation runs **server-side, inside Foundry** — which is the part that matters. Teams invokes
-the Activity Protocol endpoint, so orchestration living in a local client process would never run.
-
-It also documents two failures that are easy to lose an afternoon to:
-
-- **Publishing rotates the agent identity.** The published agent gets a brand-new identity with no
-  role assignments, and every A2A call then fails with `Failed to fetch agent card: 404` even though
-  the card is fine. The new identity needs **Foundry Agent Consumer** on the project.
-- **Never set an agent card path for a Foundry-agent target.** Foundry resolves its own; supplying
-  one returns `Agent card path is invalid for a Foundry agent`.
-
-Start with **[multi-agent/SETUP.md](multi-agent/SETUP.md)**.
-
----
+Python unit tests: `python3 -m unittest discover -s tests`.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
-| --- | --- | --- |
-| `Role 'Azure AI User' doesn't exist` | RBAC rename rolled out in the tenant | Use `Foundry User` / `Foundry Project Manager` |
-| `400 invalid_payload — 'definition' is missing` | Version payload not wrapped | Wrap the agent body in a `definition` object |
-| Toggled PNA to Enabled but still `403` | `networkAcls.defaultAction` still `Deny` | Set `defaultAction` to `Allow`, or add your client IP |
-| Teams stops responding after a config change | PATCH dropped `activity` or the Bot Service scheme | Re-send the **full** `protocol_configuration` and `authorization_schemes` |
-| `version already exists` on publish | `appVersion` reused | Increment `appVersion`; to roll out agent changes, update the version receiving traffic instead |
-| `401` when invoking the endpoint | Wrong token audience | Request a token for `https://ai.azure.com` |
-| Publishing fails — agent has no identity | `agent.identity` is null | See the Agent Applications migration guide |
-| Tool calls fail inside the agent | Agent identity lacks downstream RBAC | Grant the agent identity roles on the resources it calls |
+|---|---|---|
+| Agent tool call fails with `tool_user_error` (option B) | Knowledge base MCP URL uses `api-version=2026-11-01-preview` | Use `2026-08-01-preview` for the connection target and `server_url` |
+| Teams shows "Invalid Bot" | The agent was packaged but never published to Microsoft 365 | Run the publish step (`sharedSteps=publish`), then retry |
+| "App ID already exists" when uploading the ZIP | Publishing already registered that app ID in the tenant catalog | Use the existing catalog app, or re-issue the package with a new manifest `id` |
+| Agent returns `AgentIdentityDisabled` | Removing the agent in the Microsoft 365 admin center or Agent 365 deleted its Entra identity | Restore it from Entra deleted items (`POST /directory/deletedItems/{id}/restore`) |
+| Content Understanding defaults reject a new model deployment | New deployments take a while to be recognized | Wait a few minutes and rerun `configure` |
+| Officer can't see the shared agent | Not in the **Case IQ Officers** group, or the app isn't assigned | Add them to `officers.json`, run the group sync, assign the app |
+| Redeploying the ingestion job fails | The scheduled run is in progress | Wait until the container is `Terminated`, then redeploy |
+| New ACI container groups stay in Pending | Regional ACI capacity in the pilot region | Reuse the existing config job (`script`/`sharedSteps` parameters) |
 
 > [!CAUTION]
-> Publishing to Microsoft 365 and Teams means those services process and store publishing metadata
-> and agent responses under Microsoft 365 terms. Confirm this fits the customer's compliance, data
-> residency and governance requirements before publishing.
-
----
-
-## Clean up
-
-```powershell
-az group delete -n <resource-group> --yes --no-wait
-```
-
-Also remove the `snet-pe` subnet if you added it to a shared VNet.
-
----
-
-## References
-
-- [Configure and share your Microsoft Foundry agent](https://learn.microsoft.com/azure/foundry/agents/how-to/configure-agent)
-- [Publish agents to Microsoft 365 and Teams by using the REST API](https://learn.microsoft.com/azure/foundry/agents/how-to/publish-copilot-virtual-network)
-- [Publish agents to Microsoft 365 Copilot and Microsoft Teams](https://learn.microsoft.com/azure/foundry/agents/how-to/publish-copilot)
-- [Migrate from Agent Applications to the new agent model](https://learn.microsoft.com/azure/foundry/agents/how-to/migrate-agent-applications)
+> Publishing to Microsoft 365 and Teams means those services process agent responses under Microsoft 365 terms. Confirm compliance, data residency and governance requirements before using real data.
 
 ## License
 
