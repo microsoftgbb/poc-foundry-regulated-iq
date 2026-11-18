@@ -5,9 +5,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("native_iq", ROOT / "scripts/native_iq.py")
-native_iq = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(native_iq)
+spec = importlib.util.spec_from_file_location("per_officer_manifests", ROOT / "scripts/per_officer_manifests.py")
+manifests = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(manifests)
 
 SUBSCRIPTION = "6ab9178f-09bc-45be-ba47-f682147eb1f0"
 GROUP = "rg-regiq-caldova-poc"
@@ -15,10 +15,10 @@ GROUP = "rg-regiq-caldova-poc"
 
 def domains():
     result = []
-    for key, (oid, container) in zip(("a", "b"), native_iq.BINDINGS.items()):
+    for key, (oid, container) in zip(("a", "b"), manifests.BINDINGS.items()):
         result.append({
             "officerObjectId": oid,
-            "sourceStorage": native_iq.SOURCE_STORAGE,
+            "sourceStorage": manifests.SOURCE_STORAGE,
             "sourceContainer": container,
             "derivedStorage": f"riq{key}test",
             "runtimeStorage": f"rih{key}test",
@@ -27,7 +27,7 @@ def domains():
             "foundryAccount": f"regiq-{key}-test",
             "projectName": "caseiq",
             "searchEndpoint": f"https://regiq-{key}-test.search.windows.net",
-            "sourceEndpoint": f"https://{native_iq.SOURCE_STORAGE}.blob.core.windows.net",
+            "sourceEndpoint": f"https://{manifests.SOURCE_STORAGE}.blob.core.windows.net",
             "derivedEndpoint": f"https://riq{key}test.blob.core.windows.net/",
             "consumerAccessEnabled": False,
         })
@@ -36,7 +36,7 @@ def domains():
 
 class NativeDefinitionsTests(unittest.TestCase):
     def render(self, value=None):
-        return native_iq.render(
+        return manifests.render(
             {"domains": {"value": value or domains()}}, SUBSCRIPTION, GROUP
         )
 
@@ -99,7 +99,7 @@ class NativeDefinitionsTests(unittest.TestCase):
         self.assertEqual(len(manifest["analyzerDefinitionSha256"]), 64)
         changed = copy.deepcopy(requests[1]["body"])
         changed["description"] += " revised"
-        self.assertNotEqual(native_iq.canonical_hash(changed),
+        self.assertNotEqual(manifests.canonical_hash(changed),
                             manifest["analyzerDefinitionSha256"])
 
     def test_native_agent_has_only_read_tool_and_no_hosted_code(self):

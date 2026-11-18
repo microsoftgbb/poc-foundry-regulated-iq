@@ -1,80 +1,84 @@
-# Case IQ architecture
+# Architecture
 
-Status: deployed and verified in a commercial demo tenant with synthetic PDFs (2026-11-17). Option A and option B run side by side. See [deployment.md](deployment.md) and [option-b-shared-agent.md](option-b-shared-agent.md) for results.
+## Components
 
-## Goals
+| Component | Per-officer agents | Shared agent | Template |
+|---|---|---|---|
+| Upload storage and VNet | Shared: storage account with one container per officer, VNet `10.82.0.0/16`, Blob private endpoint | Same | `foundation.bicep`, `modules/private-uploads.bicep` |
+| Foundry account and project | `regiq-{a,b}-…` / `caseiq`, one per officer | `regiq-s-…` / `caseiq` | `per-officer-domains.bicep`, `shared-agent.bicep` |
+| Agent subnet (network injection) | `native-agent-{a,b}` | `native-agent-s` | same |
+| Models | `case-chat` (gpt-5.1) and `case-embedding` (text-embedding-3-small), regional Standard | Same | same |
+| Content Understanding analyzer | One per officer | One shared | `config/content-understanding/case-evidence-analyzer.json` |
+| Evidence store | `riq{a,b}…`: `analysis-pending`, `approved-content`, `approval-ledger` | `riqs…`: `analysis-pending`, `approved-content` (pushed record IDs), `approval-ledger` | same |
+| AI Search | S1 per officer, private indexer from `approved-content` | Basic, local authentication disabled, index `case-evidence-shared` with `permissionFilterOption=enabled` and a `userIds` field | same |
+| Foundry IQ knowledge base | `case-evidence`, filter `approved eq true and officer_oid eq '<officer>'` | `case-evidence-shared`, filter `approved eq true` | configure scripts |
+| Agent connection | `ProjectManagedIdentity` | `UserEntraToken` | configure scripts |
+| Agent runtime stores | Per-officer Cosmos DB, runtime Blob, Search (capability host) | Shared | same |
+| Ingestion | Logic App (every 5 minutes) starts an ACI job with its own managed identity | Same job, shared pipeline | `ingestion.bicep`, `scripts/ingest.ps1` |
+| Configuration | ACI job in subnet `native-config` with an outbound-only NAT gateway | Same job, `script=shared` | `config-network.bicep`, `config-job.bicep` |
+| Audit | Diagnostic settings to Log Analytics `regiq-audit-logs` | Same | `audit.bicep` |
 
-- Officers ask questions in Microsoft Teams and get answers **only from their own approved case documents**, citing the document and page.
-- No public access to the case data: Foundry, Search, Content Understanding, evidence stores and Cosmos DB are private, and no service uses API keys.
-- Low code: Azure Portal upload, Blob index tags for approval, a Logic App scheduler and native Foundry agents. There is no custom web app, bot or API Management layer.
+Search runs in East US, and the other services in East US 2.
 
-## Option A: one domain per officer
+## Network paths
 
-![Option A architecture](../diagrams/case-iq-option-a-architecture.png)
+- **Officer to upload storage:** Azure Portal over the public endpoint, with Entra authorization only. Shared keys and anonymous access are disabled.
+- **Teams to agent:** Foundry's Microsoft 365 Activity route. It is source-IP filtered by Foundry, and the agent endpoint requires `BotServiceRbac`. Every other Foundry endpoint is reachable only through its private endpoint.
+- **Agent to knowledge base:** from the Foundry agent subnet to the Search private endpoint.
+- **Jobs to services:** the ACI jobs run in `native-config` and reach Storage, Content Understanding, Search and Foundry through private endpoints. Each script refuses an endpoint that doesn't resolve to a private address.
+- **Private DNS:** `privatelink` zones for blob, file, cognitiveservices, openai, services.ai, search and documents are linked to the VNet.
 
-Each officer has their own Foundry account and project, Content Understanding analyzer, evidence store, Search index, Foundry IQ knowledge base, and prompt agent `caseiq`. The agent retrieves with its project identity, which can reach only its own index. Isolation comes from separate resources and roles, so it doesn't depend on a filter or the prompt.
+## Identities and roles
 
-## Option B: one shared agent with document-level security
-
-![Option B architecture](../diagrams/case-iq-option-b-shared-agent.png)
-
-How it works:
-- One Foundry project, one shared Content Understanding analyzer, one evidence store, and one Search index (`case-evidence-shared`) with `permissionFilterOption=enabled`.
-- Every record has `userIds = [owning officer's object ID]`. Ingestion stamps the ID from the officer-to-container binding in [`infra/officers.json`](../infra/officers.json), never from document content.
-- The agent `caseiq-shared` reaches the knowledge base through a **`UserEntraToken`** connection. Agent Service forwards the signed-in officer's token in `x-ms-query-source-authorization`, and Search returns only records whose `userIds` match that officer.
-- Search has local authentication disabled, so there's no key that could bypass the ACL.
-
-Behaviour without a user:
-- With no user token, the index and the knowledge base return nothing.
-- A service principal calling the agent is refused.
-
-Scaling: officers are listed in the registry, and the Entra group **Case IQ Officers** carries the agent and Search roles. Adding an officer needs no new Search service, agent or Teams app. The [fallback design](option-b-fallback-custom-engine-agent.md) describes the same index fronted by our own code, in case the Teams user-token path isn't acceptable.
-
-## Document lifecycle
-
-![Document lifecycle](../diagrams/case-iq-document-lifecycle-sequence.png)
-
-1. **Upload:** the officer uploads in the Azure Portal to their own container. A scheduled private job analyzes the exact Blob version with the custom analyzer. Analysis doesn't make a document searchable.
-2. **Approval:** the approver sets the Blob index tag `approval=approved`. Only the approver role can write tags, and officers can't read them.
-3. **Publish:** approved analysis becomes per-page and extracted-field records with source version, SHA-256, analyzer version and approval ID. Option A indexes them privately; option B pushes them with the ACL and a Portal link to the source PDF.
-4. **Withdrawal:** deleting the PDF, uploading a new version or removing the tag withdraws the records on the next run (about 5 minutes plus indexing). Answers already sent in Teams aren't retracted.
-
-## Security model
-
-| Principal | Can | Can't |
+| Principal | Roles and scope | Can't |
 |---|---|---|
-| Officer | Upload, read and delete in their **own** container; chat with their agent (A) or the shared agent (B); retrieve only their own records | Read other containers; approve (no tag write); see other officers' records |
-| Approver | Read PDFs and set or remove the approval tag (custom role **RegIQ Case Approver**) | Upload or change PDFs |
-| Ingestion identity | Read PDFs and tags, analyze with Content Understanding, write evidence stores, push to Search | Approve, change source PDFs, manage agents |
-| Scheduler | Read and start the ingestion job (custom role **RegIQ Ingestion Starter**) | Change the job or its identity |
-| Configuration identity | Create analyzers, indexes, knowledge bases, connections and agents | Read source PDFs or approvals |
+| Officer | Storage Blob Data Contributor on their own container. Per-officer agents: Foundry Agent Consumer on their project. Shared agent, through the group **Case IQ Officers**: Foundry Agent Consumer on the shared project, Search Index Data Reader on the shared Search service, Reader on the upload account | Read other containers, set approval tags, retrieve other officers' records |
+| Approver | **RegIQ Case Approver** (custom) on the upload account: read blobs, read and write tags | Upload, change or delete PDFs |
+| Ingestion identity | **RegIQ Case Ingestion Reader** (custom) on each officer container; Content Understanding Reader; Blob Data Contributor on evidence stores; Search Service Contributor (per officer) and Search Index Data Contributor (shared) | Set approval tags, change source PDFs, manage agents |
+| Scheduler (Logic App) | **RegIQ Ingestion Starter** (custom): read and start the ingestion job | Change the job or its identity |
+| Configuration identity | Content Understanding Contributor, Search Service Contributor, Foundry User and Contributor on the project; Search Index Data Contributor on the shared Search service, used by the isolation tests | Read source PDFs or the approval ledger |
+| Project identity | Search Index Data Reader; capability-host stores | Retrieve shared-index records (no user token) |
 
-Network:
-- Every Foundry account has public network access disabled. The only public path is the source-IP-filtered, token-authorized Microsoft 365 Activity route that Teams uses. Agent endpoints keep `BotServiceRbac`, so only users with **Foundry Agent Consumer** on the project can chat.
-- The upload storage account keeps public network access for Azure Portal uploads, with shared keys and anonymous access disabled.
+Officer membership comes from `config/officers.json`:
+- `scripts/sync-officer-group.ps1` keeps the group in step with the file.
+- `infra/bicep/officers.bicep` creates each container and its upload role.
 
-Content safety:
-- The agent instructions treat document text as evidence, never as instructions.
-- The agent can call only `knowledge_base_retrieve`.
+## Approval gate
 
-Audit: Storage, Search, Foundry and scheduler diagnostics go to Log Analytics as metadata only, with no prompts, answers or document text.
+![Document lifecycle](diagrams/case-iq-document-lifecycle-sequence.png)
 
-## Why no API Management
 
-Teams reaches the private agents through Foundry's native Activity route. Search, Foundry and Storage are reached through private endpoints, so API Management isn't needed for this design. It would be added only if a non-Teams client, such as a Power Apps flow, needs a governed private API.
+- Approval is the Blob index tag `approval=approved` on the exact current version. Only the approver role can write tags.
+- The ingestion job checks that the stored analysis matches the source container, Blob version and analyzer version before it publishes. It records each approval in `approval-ledger`.
+- Withdrawal (tag removed or changed, PDF deleted, or new version uploaded):
+  - **Per-officer:** rewrites the records as `approved=false` tombstones and re-indexes.
+  - **Shared:** deletes the pushed record IDs from the index.
+- Changes take effect on the next run (about 5 minutes, plus indexing). Answers already sent in Teams aren't retracted.
+
+## Document-level security (shared agent)
+
+- Each record has `userIds = [officer object ID]`. The ID comes from the officer-to-container binding in the registry, never from document content.
+- The index has `permissionFilterOption=enabled`. Search builds the permission filter from the token in `x-ms-query-source-authorization`.
+- The agent's `UserEntraToken` connection supplies the signed-in user's token. A request without a user token returns no records, and a service principal calling the agent is refused.
+- Search has local authentication disabled, so no API key can bypass the filter.
+
+## Citations
+
+- **Per-officer agents:** cite the document name and page in the answer text.
+- **Shared agent:** each record carries `portal_url`, an Azure Portal link to the source blob. It is built only from the fixed account, the officer's container and the blob name. The agent lists these links under "Sources", and the officer opens the PDF with their own access.
+
+## Audit logging
+
+`audit.bicep` sends diagnostics to Log Analytics `regiq-audit-logs` for:
+- **Upload and per-officer evidence storage:** `StorageRead`, `StorageWrite` and `StorageDelete`, with the caller identity, not blob content.
+- **Per-officer Search services:** `OperationLogs`. These can include query text.
+- **Per-officer Foundry accounts:** `Audit`.
+- **Scheduler:** `WorkflowRuntime`.
+
+The shared domain (`regiq-s-…`, `riqs…`) isn't covered by `audit.bicep` yet.
 
 ## Known limits
 
-- Option B depends on preview features: the Foundry IQ remote tool connection, and the knowledge base MCP endpoint on `2026-08-01-preview`.
-- Teams doesn't render Foundry citation cards. References appear in the answer text, and option B includes Portal links.
-- Permissions are only as fresh as ingestion: revoking access takes effect on the next run.
-
-## Primary sources
-
-- [Connect Foundry IQ knowledge bases to agents](https://learn.microsoft.com/azure/foundry/agents/how-to/foundry-iq-connect)
-- [MCP tool authentication (UserEntraToken)](https://learn.microsoft.com/azure/foundry/agents/how-to/mcp-authentication)
-- [Document-level access control in Azure AI Search](https://learn.microsoft.com/azure/search/search-document-level-access-overview)
-- [Push ACLs with the REST API](https://learn.microsoft.com/azure/search/search-index-access-control-lists-and-rbac-push-api)
-- [Publish agents to Microsoft 365 with a private network](https://learn.microsoft.com/azure/foundry/agents/how-to/publish-copilot-virtual-network)
-- [Content Understanding custom analyzers](https://learn.microsoft.com/azure/ai-services/content-understanding/tutorial/create-custom-analyzer)
-- [Authorize Blob access in the Azure portal](https://learn.microsoft.com/azure/storage/blobs/authorize-data-operations-portal)
+- The shared agent's knowledge base connection uses preview APIs. The MCP endpoint runs on `2026-08-01-preview`.
+- Teams doesn't render Foundry citation cards, so references appear in the answer text.
+- Permissions are only as fresh as the last ingestion run.

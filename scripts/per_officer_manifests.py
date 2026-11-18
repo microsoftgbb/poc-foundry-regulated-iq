@@ -9,10 +9,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-# Option A officer domains come from the single officer registry.
+# Per-officer domains come from the single officer registry.
 BINDINGS = {
     officer["objectId"]: officer["container"]
-    for officer in json.loads((ROOT / "infra/officers.json").read_text())["officers"]
+    for officer in json.loads((ROOT / "config/officers.json").read_text())["officers"]
     if officer.get("optionA")
 }
 SOURCE_STORAGE = "regiqvqx35xnseaqaw"
@@ -71,7 +71,7 @@ def service_definitions(domain, subscription, resource_group, model="case-chat")
     )
     resource_prefix = f"/subscriptions/{subscription}/resourceGroups/{resource_group}/providers"
     mcp = f"{search}/knowledgebases/case-evidence/mcp?api-version={SEARCH_API}"
-    analyzer = json.loads((ROOT / "native/analyzer.json").read_text())
+    analyzer = json.loads((ROOT / "config/content-understanding/case-evidence-analyzer.json").read_text())
     analyzer_id = f"case_evidence_{canonical_hash(analyzer)[:16]}"
     fields = [
         {"name": "id", "type": "Edm.String", "key": True, "filterable": True},
@@ -135,7 +135,7 @@ def service_definitions(domain, subscription, resource_group, model="case-chat")
         "definition": {
             "kind": "prompt",
             "model": model,
-            "instructions": (ROOT / "native/agent-instructions.txt").read_text().strip(),
+            "instructions": (ROOT / "config/agents/per-officer-agent-instructions.txt").read_text().strip(),
             "tools": [{
                 "type": "mcp",
                 "server_label": "case-evidence",
@@ -242,7 +242,7 @@ def render(outputs, subscription, resource_group):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--outputs", type=Path, required=True,
-                        help="ARM properties.outputs JSON from native-iq.")
+                        help="ARM properties.outputs JSON from per-officer-domains.bicep.")
     parser.add_argument("--subscription", required=True)
     parser.add_argument("--resource-group", required=True)
     parser.add_argument("--output", type=Path, required=True)

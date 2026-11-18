@@ -13,8 +13,6 @@ param domains array
 @description('Semantic app version; increment to republish.')
 param appVersion string = '1.0.0'
 
-@allowed(['publish', 'package'])
-param mode string = 'publish'
 
 param jobName string = 'regiq-publish-teams-job'
 
@@ -47,7 +45,7 @@ resource job 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
             '-NoLogo'
             '-NonInteractive'
             '-Command'
-            loadTextContent('../scripts/publish-native-teams.ps1')
+            loadTextContent('../../scripts/publish-per-officer-teams.ps1')
           ]
           environmentVariables: [
             {
@@ -57,10 +55,6 @@ resource job 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
             {
               name: 'PUBLISH_APP_VERSION'
               value: appVersion
-            }
-            {
-              name: 'PUBLISH_MODE'
-              value: mode
             }
             {
               name: 'OPERATOR_TOKEN'

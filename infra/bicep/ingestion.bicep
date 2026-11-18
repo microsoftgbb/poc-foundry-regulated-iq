@@ -15,12 +15,12 @@ param approverObjectId string
 @minValue(1)
 param intervalMinutes int = 5
 
-@description('Option B shared pipeline: { searchService, index, foundryAccount, evidenceStorage, analyzerId, analyzerSha256 }. Empty disables it.')
+@description('Shared-agent pipeline: { searchService, index, foundryAccount, evidenceStorage, analyzerId, analyzerSha256 }. Empty disables it.')
 param sharedIndex object = {}
 
 // Single officer registry: every officer's upload container is read by this
-// job, and (option B) each container binds records to its officer.
-var officers = loadJsonContent('officers.json').officers
+// job, and (shared agent) each container binds records to its officer.
+var officers = loadJsonContent('../../config/officers.json').officers
 
 var baseName = 'regiq-ingest-${uniqueString(resourceGroup().id, 'native-ingest')}'
 var bootstrap = '''
@@ -237,7 +237,7 @@ resource job 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
             '-NoLogo'
             '-NonInteractive'
             '-Command'
-            '${replace(bootstrap, '__CLIENT_ID__', identity.properties.clientId)}\n${loadTextContent('../scripts/ingest-native-private.ps1')}'
+            '${replace(bootstrap, '__CLIENT_ID__', identity.properties.clientId)}\n${loadTextContent('../../scripts/ingest.ps1')}'
           ]
           environmentVariables: [
             {

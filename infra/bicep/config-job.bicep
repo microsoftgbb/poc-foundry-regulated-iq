@@ -21,17 +21,17 @@ param operatorToken string = ''
   'private'
   'shared'
 ])
-@description('private = option A per-officer domains; shared = option B shared agent (scripts/configure-native-shared.ps1).')
+@description('private = per-officer domains; shared = shared agent (scripts/configure-shared-agent.ps1).')
 param script string = 'private'
 
-@description('Option B shared domain: name, officerObjectIds, operatorObjectId.')
+@description('Shared domain: name, officerObjectIds, operatorObjectId.')
 param sharedConfig object = {}
 
-@description('Option B steps, comma separated: configure, test, package.')
+@description('Shared-agent steps, comma separated: configure, test, package, publish.')
 param sharedSteps string = 'configure'
 
 @secure()
-@description('Operator search.azure.com token, only for the option B isolation tests. Redeploy without it afterwards.')
+@description('Operator search.azure.com token, only for the shared-agent isolation tests. Redeploy without it afterwards.')
 param operatorSearchToken string = ''
 
 var runnerName = 'regiq-config-${uniqueString(resourceGroup().id, 'native-config')}'
@@ -84,7 +84,7 @@ resource job 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
             '-NoLogo'
             '-NonInteractive'
             '-Command'
-            '${replace(bootstrap, '__CLIENT_ID__', identity.properties.clientId)}\n${script == 'shared' ? loadTextContent('../scripts/configure-native-shared.ps1') : loadTextContent('../scripts/configure-native-private.ps1')}'
+            '${replace(bootstrap, '__CLIENT_ID__', identity.properties.clientId)}\n${script == 'shared' ? loadTextContent('../../scripts/configure-shared-agent.ps1') : loadTextContent('../../scripts/configure-per-officer.ps1')}'
           ]
           environmentVariables: [
             {
@@ -105,11 +105,11 @@ resource job 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
             }
             {
               name: 'SHARED_CONFIG'
-              value: string(union(sharedConfig, { officerObjectIds: map(loadJsonContent('officers.json').officers, o => o.objectId) }))
+              value: string(union(sharedConfig, { officerObjectIds: map(loadJsonContent('../../config/officers.json').officers, o => o.objectId) }))
             }
             {
               name: 'SHARED_ANALYZER'
-              value: script == 'shared' ? loadTextContent('../native/analyzer.json') : ''
+              value: script == 'shared' ? loadTextContent('../../config/content-understanding/case-evidence-analyzer.json') : ''
             }
             {
               name: 'SHARED_STEPS'

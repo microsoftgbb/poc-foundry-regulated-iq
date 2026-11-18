@@ -1,9 +1,9 @@
 targetScope = 'resourceGroup'
 
-// Option B: one shared private Foundry agent over one shared Foundry IQ index
+// Shared agent: one private Foundry agent over one shared Foundry IQ index
 // whose documents carry native Search ACLs (userIds). Retrieval is trimmed by
 // the signed-in officer's own Entra token (UserEntraToken connection), not by
-// a per-officer domain. Option A (one domain per officer) is left untouched.
+// a per-officer domain.
 
 param location string = 'eastus2'
 @description('East US 2 has no capacity for new Search services. Keep retrieval in the US geography.')
@@ -131,7 +131,7 @@ resource search 'Microsoft.Search/searchServices@2025-05-01' = {
   }
 }
 
-module searchEndpoint './native/endpoint.bicep' = {
+module searchEndpoint './modules/endpoint.bicep' = {
   name: '${name}-search-${uniqueString(deployment().name)}'
   params: {
     name: '${name}-search-pe'
@@ -156,7 +156,7 @@ resource runtimeStorage 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   properties: storageProperties
 }
 
-module runtimeStorageEndpoint './native/endpoint.bicep' = {
+module runtimeStorageEndpoint './modules/endpoint.bicep' = {
   name: '${name}-runtime-storage-${uniqueString(deployment().name)}'
   params: {
     name: '${name}-runtime-blob-pe'
@@ -199,7 +199,7 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' = {
   }
 }
 
-module cosmosEndpoint './native/endpoint.bicep' = {
+module cosmosEndpoint './modules/endpoint.bicep' = {
   name: '${name}-cosmos-${uniqueString(deployment().name)}'
   params: {
     name: '${name}-cosmos-pe'
@@ -318,7 +318,7 @@ resource evidenceContainers 'Microsoft.Storage/storageAccounts/blobServices/cont
   }
 }]
 
-module evidenceEndpoint './native/endpoint.bicep' = {
+module evidenceEndpoint './modules/endpoint.bicep' = {
   name: '${name}-evidence-${uniqueString(deployment().name)}'
   params: {
     name: '${name}-evidence-blob-pe'
@@ -381,7 +381,7 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2026-09-15-preview' = if 
   ]
 }
 
-module foundryEndpoint './native/endpoint.bicep' = if (deployFoundry) {
+module foundryEndpoint './modules/endpoint.bicep' = if (deployFoundry) {
   name: '${name}-foundry-${uniqueString(deployment().name)}'
   params: {
     name: '${name}-foundry-pe'
@@ -405,7 +405,7 @@ resource project 'Microsoft.CognitiveServices/accounts/projects@2026-09-15-previ
     type: 'SystemAssigned'
   }
   properties: {
-    displayName: 'Shared officer case workspace (option B)'
+    displayName: 'Shared officer case workspace'
     description: 'One agent for all officers; retrieval trimmed by each officer token.'
   }
   dependsOn: [
@@ -611,7 +611,7 @@ resource operatorProjectUser 'Microsoft.Authorization/roleAssignments@2022-04-01
   }
 }
 
-module configRoles './native/config-roles.bicep' = if (deployFoundry) {
+module configRoles './modules/config-roles.bicep' = if (deployFoundry) {
   name: '${name}-config-roles-${uniqueString(deployment().name)}'
   params: {
     domainName: name

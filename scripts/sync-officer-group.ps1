@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
-# Creates the officer security group named in infra/officers.json (if missing)
+# Creates the officer security group named in config/officers.json (if missing)
 # and makes its membership exactly the registry's officers. Prints the group
-# object ID for infra/officers.bicep. Requires an Azure CLI sign-in that can
+# object ID for infra/bicep/officers.bicep. Requires an Azure CLI sign-in that can
 # manage groups (for example Groups Administrator) in the Caldova tenant.
 #
 #   pwsh scripts/sync-officer-group.ps1            # apply
@@ -9,7 +9,7 @@
 
 [CmdletBinding(SupportsShouldProcess)]
 param(
-    [string] $Registry = (Join-Path $PSScriptRoot '../infra/officers.json')
+    [string] $Registry = (Join-Path $PSScriptRoot '../config/officers.json')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,7 +42,7 @@ if ($found.Count -eq 0) {
     if (-not $PSCmdlet.ShouldProcess($groupName, 'Create security group')) { return }
     $nickname = ($groupName.ToLowerInvariant() -replace '[^a-z0-9]', '')
     $group = Invoke-Az ad group create --display-name $groupName --mail-nickname $nickname `
-        --description 'Case IQ officers. Membership is managed from infra/officers.json.'
+        --description 'Case IQ officers. Membership is managed from config/officers.json.'
     Write-Output "Created group '$groupName'."
 } else {
     $group = $found[0]

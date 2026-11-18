@@ -2,15 +2,15 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 # Reconciles officers' uploaded PDFs.
-# Option A (INGEST_DOMAINS): each officer's own evidence store and index:
+# Per-officer domains (INGEST_DOMAINS): each officer's own evidence store and index:
 #   upload (current Blob version) -> Content Understanding custom analyzer
 #   -> approval (Blob index tag set by the approver role) -> approved records
 #   -> private indexer run.
 #   A version that is deleted, replaced or loses its approval is withdrawn by
 #   rewriting its records as approved=false tombstones, which the knowledge
 #   source base filter excludes.
-# Option B (INGEST_SHARED): one shared pipeline for every officer in the
-#   registry (INGEST_OFFICERS, from infra/officers.json): shared analyzer ->
+# Shared agent (INGEST_SHARED): one shared pipeline for every officer in the
+#   registry (INGEST_OFFICERS, from config/officers.json): shared analyzer ->
 #   approval tag -> records pushed to the shared index with the native ACL
 #   userIds = [owning officer]; withdrawn versions are deleted from the index.
 # The owning officer always comes from the container binding in the registry,
@@ -61,7 +61,7 @@ foreach ($domain in $domains) {
     $allowedHosts["$($domain.foundryAccount).cognitiveservices.azure.com"] = 'https://cognitiveservices.azure.com/'
     $allowedHosts["$($domain.searchService).search.windows.net"] = 'https://search.azure.com/'
 }
-# Option B (optional): mirror every officer's approved records into one shared
+# Shared agent (optional): publish every officer's approved records into one shared
 # index whose native ACL (userIds) holds the owning officer's object ID, so a
 # single shared agent can retrieve with the caller's own token.
 $shared = if ($env:INGEST_SHARED) { $env:INGEST_SHARED | ConvertFrom-Json -AsHashtable } else { $null }
@@ -78,7 +78,7 @@ if ($shared) {
     $allowedHosts["$($shared.foundryAccount).cognitiveservices.azure.com"] = 'https://cognitiveservices.azure.com/'
 }
 $sharedApi = '2026-10-01'
-# Azure Portal blob properties deep link for option B citations. Officers
+# Azure Portal blob properties deep link for shared-agent citations. Officers
 # open their own source PDFs in the Portal with Entra-only data access.
 $sourceStorageId = "/subscriptions/$subscription/resourceGroups/rg-regiq-caldova-poc" +
     "/providers/Microsoft.Storage/storageAccounts/$sourceStorage"
@@ -453,7 +453,7 @@ function Get-AnalysisEnvelope {
     return Get-BlobJson $Evidence 'analysis-pending' $envelopeName
 }
 
-# Option B: one pipeline for every registry officer, straight into the shared
+# Shared agent: one pipeline for every registry officer, straight into the shared
 # ACL index. approved-content/<officer>/<key>.json records the pushed IDs so a
 # withdrawal can delete exactly those documents.
 function Invoke-SharedPipeline {

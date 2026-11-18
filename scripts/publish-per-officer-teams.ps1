@@ -85,21 +85,6 @@ foreach ($domain in $domains) {
             privacyUrl = 'https://privacy.microsoft.com'
             termsOfUseUrl = 'https://www.microsoft.com/legal/terms-of-use'
         }
-        if ($env:PUBLISH_MODE -eq 'package') {
-            # Package only: prints the validated Teams app ZIP as base64 so an
-            # officer can upload it as a custom app. No catalog submission.
-            $zipUri = [Uri] "$project/agents/caseiq/microsoft365/zip?api-version=v1"
-            $zip = Invoke-WebRequest -Method POST -Uri $zipUri -Authentication Bearer -Token $token `
-                -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $request -Depth 10 -Compress) `
-                -TimeoutSec 180 -SkipHttpErrorCheck -MaximumRedirection 0
-            if ($zip.StatusCode -ne 200) { throw "Package failed with HTTP $($zip.StatusCode): $($zip.Content)" }
-            $bytes = $zip.RawContentStream.ToArray()
-            Write-Output "PACKAGE $($domain.officerLabel) $([Convert]::ToBase64String($bytes))"
-            $after = @((Invoke-Project GET $agentUrl).Data.agent_endpoint.authorization_schemes | ForEach-Object { $_.type })
-            if ('BotServiceTenant' -in $after -or 'BotServiceRbac' -notin $after) { throw 'Packaging changed the authorization scheme.' }
-            Write-Output "Schemes after packaging $($domain.officerLabel): $($after -join ',')"
-            continue
-        }
         $publish = Invoke-Project POST "$project/agents/caseiq/microsoft365/publish?api-version=v1" $request
         if ($publish.Status -notin 200, 201, 202) { throw "Publish failed with HTTP $($publish.Status): $($publish.Raw)" }
         Write-Output "Published $($domain.officerLabel): $($publish.Raw)"

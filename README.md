@@ -1,125 +1,114 @@
-# Case IQ: private Foundry agents in Teams for tax officers
+# Foundry regulated IQ: private Foundry agents in Teams PoC
 
-Case IQ lets tax officers ask questions in Microsoft Teams about **their own approved case documents** and get answers that cite the source PDF and page. Everything behind Teams is private: Foundry, AI Search, Content Understanding and the evidence stores have public network access disabled, and there are no API keys.
+> **Synthetic data only.** This proof of concept is for synthetic case PDFs. Never upload real filings, real people's names or real tax IDs.
 
-> **Synthetic data only.** This pilot runs in a commercial demo tenant with synthetic PDFs.
+## Purpose
 
-Two isolation models are deployed side by side:
+Officers ask questions in Microsoft Teams about **their own approved case documents** and get answers that cite the document and page. The agents are native Microsoft Foundry prompt agents with a Foundry IQ (Azure AI Search) knowledge base. Officers upload PDFs in the Azure Portal, and an approver releases each document before it can be searched.
 
-| | Option A: one agent per officer | Option B: one shared agent (recommended for scale) |
+Foundry, AI Search, Content Understanding, Cosmos DB and the evidence stores have public network access disabled and use Microsoft Entra ID or managed identities only. Teams reaches the agents through Foundry's Microsoft 365 Activity route (`enable_m365_public_endpoint` with `BotServiceRbac`).
+
+Two ways of keeping officers apart are deployed:
+
+| | Per-officer agents | Shared agent |
 |---|---|---|
-| Isolation | Each officer has their own Foundry account, Search index and agent | One index; every record carries a native Search ACL (`userIds`), and the agent searches with the signed-in officer's own token |
-| Teams | One app per officer (`Case IQ - Officer A/B`) | One app for everyone (`Case IQ Shared`) |
-| Adding an officer | A new domain: Foundry, Search, Cosmos, Storage and an agent | A line in [`infra/officers.json`](infra/officers.json) plus group membership |
-| Docs | [deployment.md](docs/deployment.md) | [option-b-shared-agent.md](docs/option-b-shared-agent.md) |
+| Isolation | Separate Foundry account, Search service, knowledge base and agent per officer | One index; each record carries a Search access control list (`userIds`), and the agent searches with the signed-in officer's token |
+| Teams app | One per officer | One for all officers |
+| Add an officer | Deploy another domain | Add an entry to `config/officers.json` and sync the officer group |
 
-Neither option uses API Management or a custom bot. Teams reaches each agent through Foundry's built-in Microsoft 365 Activity route (`enable_m365_public_endpoint` with `BotServiceRbac`), the only public path on the Foundry accounts.
+| Part | What it is |
+|------|------------|
+| [docs/getting-started.md](docs/getting-started.md) | Deploy, configure, operate and add officers. |
+| [docs/architecture.md](docs/architecture.md) | Components, network paths, identities, approval gate and audit. |
+| [docs/fallback-custom-engine-agent.md](docs/fallback-custom-engine-agent.md) | Design (not built) for a custom front end over the shared index. |
+| [docs/diagrams/](docs/diagrams/) | Architecture and sequence diagrams (PNG, SVG, Mermaid). |
+| `infra/bicep/` | Stage templates and `modules/`. |
+| `config/` | Officer registry, Content Understanding analyzer, agent instructions. |
+| `scripts/` | Configuration, ingestion, publishing and group sync, run inside the VNet by Azure Container Instances jobs. |
+| `test/` | Unit tests for the per-officer service definitions. |
 
-## How it works
+## Architecture
 
-**Upload and approval (both options)**
-1. An officer uploads a PDF in the Azure Portal to their own container (`officer-<key>-pending`). They can't read or write anyone else's container.
-2. Every 5 minutes, a Logic App starts a private ingestion job (Azure Container Instances, managed identity). The job sends the exact Blob version to a Content Understanding custom analyzer.
-3. An independent approver sets the Blob index tag `approval=approved`. Officers can't see or set tags.
-4. The job publishes per-page and extracted-field records to Search:
-   - **Option A:** to the officer's own index, through a private indexer.
-   - **Option B:** to the shared index, with `userIds = [officer object ID]` and a Portal link to the source PDF.
+Shared agent:
+
+![Shared agent architecture](docs/diagrams/case-iq-shared-agent-architecture.png)
+
+Per-officer agents:
+
+![Per-officer architecture](docs/diagrams/case-iq-per-officer-architecture.png)
+
+```text
+  Officer (Azure Portal)                 Approver (Azure Portal)
+        | upload PDF                          | Blob index tag approval=approved
+        v                                     v
+  +------------------------------------------------------------+
+  | Upload storage: one container per officer (Entra only)     |
+  +------------------------------+-----------------------------+
+                                 | read version + tag (every 5 minutes)
+  +------------------------------v-----------------------------+
+  | Private VNet                                               |
+  |  Logic App scheduler -> ingestion job (ACI, managed id)    |
+  |    -> Content Understanding custom analyzer                |
+  |    -> evidence store (analysis, approval ledger)           |
+  |    -> AI Search index (per officer, or shared with ACL)    |
+  |  Foundry IQ knowledge base <- Foundry prompt agent         |
+  +------------------------------^-----------------------------+
+                                 | Activity route, BotServiceRbac
+  Officer (Microsoft Teams) -----+
+```
+
+## Data flows
+
+### Upload and approval
+
+1. The officer uploads a PDF in the Azure Portal to their own container `officer-<key>-pending`.
+2. Every 5 minutes, a Logic App starts the ingestion job. It sends the current Blob version to the Content Understanding custom analyzer and stores the result. Analysis alone makes nothing searchable.
+3. The approver sets the Blob index tag `approval=approved`. Officers can't read or write tags.
+4. On the next run, the job writes per-page and extracted-field records with the source version, SHA-256, analyzer version and approval ID:
+   - **Per-officer agents:** to the officer's own evidence store, indexed by a private indexer.
+   - **Shared agent:** pushed to the shared index with `userIds = [officer object ID]` and a Portal link to the source PDF. The object ID comes from the container binding in `config/officers.json`.
 5. Deleting the PDF, uploading a new version or removing the tag withdraws the records on the next run.
 
-**Chat**
-- The officer asks in Teams. The Foundry prompt agent calls its Foundry IQ knowledge base (`knowledge_base_retrieve`) and answers only from the returned evidence, citing the document and page.
-- **Option A:** the agent retrieves with its project identity from the officer's own domain.
-- **Option B:** the agent's `UserEntraToken` connection forwards the officer's own token. With no user token, Search returns nothing.
+### Chat
 
-## Diagrams
+1. The officer asks the agent a question in Teams.
+2. The agent calls `knowledge_base_retrieve`, the only tool it has, and answers only from the returned evidence, citing the document and page.
+   - **Per-officer agents:** the agent retrieves with its project's managed identity from the officer's own index.
+   - **Shared agent:** the `UserEntraToken` connection sends the officer's token in `x-ms-query-source-authorization`. Search returns only records whose `userIds` match the signed-in officer.
 
-| | |
-|---|---|
-| Option A architecture (as built) | ![Option A](diagrams/case-iq-option-a-architecture.png) |
-| Option B architecture | ![Option B](diagrams/case-iq-option-b-shared-agent.png) |
-| Document lifecycle (upload → approval → indexing → Teams) | ![Sequence](diagrams/case-iq-document-lifecycle-sequence.png) |
-| Officer experience (illustrative) | ![Officer experience](diagrams/case-iq-officer-experience.png) |
+## Security model
 
-Mermaid sources: [`case-iq-option-b-shared-agent.mmd`](diagrams/case-iq-option-b-shared-agent.mmd), [`case-iq-document-lifecycle-sequence.mmd`](diagrams/case-iq-document-lifecycle-sequence.mmd).
+- **Private networking.** Foundry, Search, Content Understanding, Cosmos DB and the evidence and runtime stores have `publicNetworkAccess` disabled and private endpoints. On Foundry, only the Microsoft 365 Activity route is reachable from outside. The upload storage account accepts Portal traffic with Entra authorization only.
+- **No keys.** Shared keys and local authentication are disabled. Services use managed identities and Entra tokens.
+- **Least privilege.** Each identity holds only the roles it needs:
+  - Officers: their own upload container, plus chat with the agent.
+  - The approver: read PDFs and set the approval tag (custom role).
+  - The ingestion job: read PDFs and tags, analyze, write evidence and records.
+  - The scheduler: start the job only.
+  - See [docs/architecture.md](docs/architecture.md#identities-and-roles).
+- **Approval before exposure.** Only approved, exact Blob versions are indexed. Knowledge sources filter `approved eq true`.
+- **Document-level security (shared agent).** Search ACLs are evaluated against the caller's token. Without a user token, the index returns no records.
+- **Agent tools.** Each agent has only `knowledge_base_retrieve`, with `require_approval: never`. Its instructions treat document text as evidence, not instructions.
+- **Audit.** Diagnostic settings send Storage, Foundry and scheduler operations to Log Analytics, with no document, prompt or answer text. Search operation logs can include query text. The shared domain isn't covered by the audit template yet.
 
-## Verified results
+## Synthetic data only
 
-| Check | Option A | Option B |
-|---|---|---|
-| Own case answered with document and page | PASS (both officers) | PASS (test account) |
-| Other officer's case refused | PASS (both directions) | PASS: other records are never returned |
-| No user identity or a service principal caller | n/a (agent per officer) | PASS: 0 documents; the agent refuses service principals |
-| Withdrawal and re-approval | PASS | Implemented: records deleted by exact ID |
-| Teams | Used by an officer | `Case IQ Shared` works in Teams |
+> **Warning:** use only synthetic data. Treat any real-looking value as an incident.
 
-Officers testing option B against each other in Teams, with adversarial prompts, is the remaining manual check. See [option-b-shared-agent.md](docs/option-b-shared-agent.md#teams-test-manual).
+## Pilot validation checklist
 
-## Repository layout
+Results from the pilot environment (2026-11-17):
 
-```
-infra/
-  main.bicep, main.parameters.json   Resource group + upload foundation (subscription scope)
-  private-uploads.bicep              Upload storage (Entra-only), VNet, Blob private endpoint
-  officers.json                      Officer registry: object ID, name, upload container
-  officers.bicep                     Per-officer containers + upload roles; group roles (option B)
-  native-iq.bicep                    Option A: one private domain per officer (uses native/domain.bicep)
-  native-iq*.parameters.json         Option A dependency and runtime phases
-  native-shared.bicep                Option B: shared Foundry, Search (ACL), evidence store, roles
-  native-config-network.bicep        NAT, subnet and identity for the private configuration job
-  native-config-job.bicep            Private ACI job that runs the configure scripts
-  native-ingest.bicep                Ingestion job, custom roles, 5-minute Logic App scheduler
-  native-publish-job.bicep           Option A Teams publish/package job
-  native-audit.bicep                 Diagnostic settings (metadata only, no content)
-  native/                            Domain, private endpoint, DNS and role modules
-native/
-  analyzer.json                      Content Understanding custom analyzer schema
-  agent-instructions.txt             Option A agent instructions
-scripts/
-  native_iq.py                       Renders option A service definitions (manifests)
-  configure-native-private.ps1       Option A configure, verify, end-to-end tests, Teams package
-  configure-native-shared.ps1        Option B configure, isolation tests (T0–T9), package, publish
-  ingest-native-private.ps1          Upload → analyze → approve → publish/withdraw reconcile
-  publish-native-teams.ps1           Option A Teams publish
-  sync-officer-group.ps1             Creates and syncs the "Case IQ Officers" Entra group
-tests/
-  test_native_iq.py                  Unit tests for the option A definitions
-docs/
-  architecture.md                    Design, security model and decisions
-  deployment.md                      As-built inventory, runbook and option A results
-  option-b-shared-agent.md           Option B as built, tests, runbook, adding officers
-  option-b-shared-agent-research.md  Feasibility research and sources
-  option-b-fallback-custom-engine-agent.md  Fallback design if the Teams token path fails (not built)
-diagrams/                            Architecture and sequence diagrams (PNG, SVG, Mermaid)
-```
-
-## Deploy and operate
-
-The deployment order, commands and day-to-day runbook (upload, approve, chat, add an officer) are in [deployment.md](docs/deployment.md) and [option-b-shared-agent.md](docs/option-b-shared-agent.md#runbook). In short:
-
-1. `infra/main.bicep`: upload foundation.
-2. `infra/native-iq.bicep`: option A domains. Then `infra/native-shared.bicep`: option B. Both deploy in two phases, `deployFoundry=false` then `true`.
-3. `infra/native-config-network.bicep`, then `infra/native-config-job.bicep`: configure analyzers, indexes, knowledge bases, connections and agents from inside the VNet.
-4. `scripts/sync-officer-group.ps1`, then `infra/officers.bicep`: officer access.
-5. `infra/native-ingest.bicep` and `infra/native-audit.bicep`: ingestion schedule and audit.
-6. Publish to Microsoft 365, then upload the Teams app package in the Teams admin center and assign it to the officers or the group.
-
-Python unit tests: `python3 -m unittest discover -s tests`.
-
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| Agent tool call fails with `tool_user_error` (option B) | Knowledge base MCP URL uses `api-version=2026-11-01-preview` | Use `2026-08-01-preview` for the connection target and `server_url` |
-| Teams shows "Invalid Bot" | The agent was packaged but never published to Microsoft 365 | Run the publish step (`sharedSteps=publish`), then retry |
-| "App ID already exists" when uploading the ZIP | Publishing already registered that app ID in the tenant catalog | Use the existing catalog app, or re-issue the package with a new manifest `id` |
-| Agent returns `AgentIdentityDisabled` | Removing the agent in the Microsoft 365 admin center or Agent 365 deleted its Entra identity | Restore it from Entra deleted items (`POST /directory/deletedItems/{id}/restore`) |
-| Content Understanding defaults reject a new model deployment | New deployments take a while to be recognized | Wait a few minutes and rerun `configure` |
-| Officer can't see the shared agent | Not in the **Case IQ Officers** group, or the app isn't assigned | Add them to `officers.json`, run the group sync, assign the app |
-| Redeploying the ingestion job fails | The scheduled run is in progress | Wait until the container is `Terminated`, then redeploy |
-| New ACI container groups stay in Pending | Regional ACI capacity in the pilot region | Reuse the existing config job (`script`/`sharedSteps` parameters) |
-
-> [!CAUTION]
-> Publishing to Microsoft 365 and Teams means those services process agent responses under Microsoft 365 terms. Confirm compliance, data residency and governance requirements before using real data.
+- [x] **Own case answered:** each per-officer agent answers its officer's case with the document and page.
+- [x] **Other officer refused:** each per-officer agent answers "I don't know" for the other officer's case.
+- [x] **Withdrawal:** removing the approval tag removes the evidence from answers; re-approving restores it.
+- [x] **Shared agent, no user token:** a service principal querying the shared index or knowledge base gets 0 documents.
+- [x] **Shared agent, user token:** a test user gets only records whose ACL names that user.
+- [x] **Shared agent, service principal caller:** the agent refuses the call.
+- [x] **Citations:** shared-agent answers link to the source PDF in the Azure Portal, never to the Search endpoint.
+- [x] **Teams:** both a per-officer app and the shared app answer in Teams.
+- [ ] **Shared agent, officers in Teams:** two officers ask about each other's cases. Pass means zero cross-officer results.
+- [ ] **Audit:** extend `audit.bicep` to the shared domain, and review what Search operation logs record.
 
 ## License
 

@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-# Option B: one shared Foundry prompt agent over one Foundry IQ knowledge base.
+# Shared agent: one Foundry prompt agent over one Foundry IQ knowledge base.
 # Every indexed record carries a native Search ACL (userIds = the owning
 # officer's Entra object ID). The agent reaches the knowledge base MCP endpoint
 # through a UserEntraToken connection, so Agent Service forwards the signed-in
@@ -13,7 +13,6 @@ Set-StrictMode -Version Latest
 #   test       isolation tests (needs OPERATOR_TOKEN and OPERATOR_SEARCH_TOKEN)
 #   package    Activity endpoint (BotServiceRbac) + Teams app ZIP (needs OPERATOR_TOKEN)
 #   publish    as package, plus Microsoft 365 publish (bot registration + Teams channel)
-#   cleanup    delete the diagnostic probe agents and connections
 
 $subscription = '6ab9178f-09bc-45be-ba47-f682147eb1f0'
 $tenant = '95287129-9bbb-4084-8485-dc845ae7d143'
@@ -152,7 +151,7 @@ $agentDefinition = @{
 }
 
 if ('configure' -in $steps) {
-    # Option B shared ingestion: the same custom analyzer definition as the
+    # Shared ingestion: the same custom analyzer definition as the
     # officer domains, hosted in the shared account.
     $cuApi = '2025-11-01'
     $foundry = "https://$name.services.ai.azure.com"
@@ -407,16 +406,6 @@ if ('test' -in $steps) {
     $failed = @($results.Keys | Where-Object { -not $results[$_] })
     if ($failed.Count -gt 0) { throw "Isolation tests failed: $($failed -join ', ')" }
     Write-Output 'All shared-agent isolation tests passed.'
-}
-
-# Removes the diagnostic agents and connections used to choose the connection
-# type (kept for audit in docs/option-b-shared-agent.md).
-if ('cleanup' -in $steps) {
-    foreach ($n in 'p0', 'p1', 'p2', 'p3', 'p4', 'p5') {
-        $agent = Invoke-Shared DELETE "$project/agents/caseiq-probe-$n`?api-version=v1"
-        $conn = Invoke-Shared DELETE "$armProject/connections/kb-probe-$n`?api-version=2025-10-01-preview"
-        Write-Output "Cleanup ${n}: agent HTTP $($agent.Status), connection HTTP $($conn.Status)"
-    }
 }
 
 if ('package' -in $steps -or 'publish' -in $steps) {

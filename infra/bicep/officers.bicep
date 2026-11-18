@@ -1,6 +1,6 @@
 targetScope = 'resourceGroup'
 
-// Officer access, driven by infra/officers.json (the single officer registry).
+// Officer access, driven by config/officers.json (the single officer registry).
 //   per officer : own upload container + Storage Blob Data Contributor on it
 //   officer group: Reader on the upload account (Portal browsing),
 //                  Foundry Agent Consumer on the shared agent project and
@@ -13,7 +13,7 @@ param officerGroupObjectId string
 
 param sourceStorageName string = 'regiqvqx35xnseaqaw'
 
-var registry = loadJsonContent('officers.json')
+var registry = loadJsonContent('../../config/officers.json')
 var officers = registry.officers
 var sharedName = 'regiq-s-${uniqueString(resourceGroup().id, 'native-iq')}'
 var role = {

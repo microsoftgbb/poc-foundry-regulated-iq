@@ -1,38 +1,24 @@
-# Local variable files - may contain tenant IDs, subscription IDs, resource names
-**/00-variables.ps1
-*.local.ps1
-*.local.json
-
-# Azure / auth artifacts
-*.azureauth
-*.pfx
-*.pem
-*.key
+# Foundry regulated IQ PoC: local deployment state and generated files
 .azure/
-azure.env
+*.local.json
+manifests.json
+outputs.json
+*.zip
+
+# Credentials
 .env
 .env.*
+*.pem
+*.pfx
+*.key
 
-# Terraform / bicep build output
-*.tfstate
-*.tfstate.*
-.terraform/
-*.bicepparam
-
-# OS / editor
+# OS and editor
 .DS_Store
-Thumbs.db
+._*
 .vscode/
 .idea/
-
-# Node
-node_modules/
-package-lock.json
 
 # Python
 __pycache__/
 *.pyc
 .venv/
-*.sqlite3
-*.sqlite3-*
-

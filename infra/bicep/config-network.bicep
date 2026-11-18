@@ -66,7 +66,7 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   location: location
 }
 
-module roles './native/config-roles.bicep' = [for domainName in domainNames: {
+module roles './modules/config-roles.bicep' = [for domainName in domainNames: {
   name: '${domainName}-config-roles'
   params: {
     domainName: domainName

@@ -19,7 +19,7 @@ resource group 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   }
 }
 
-module uploads 'private-uploads.bicep' = {
+module uploads './modules/private-uploads.bicep' = {
   name: 'private-uploads'
   scope: group
   params: {

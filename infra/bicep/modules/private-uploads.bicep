@@ -7,7 +7,7 @@ param publicUploads bool = false
 var suffix = uniqueString(resourceGroup().id)
 var storageName = 'regiq${suffix}'
 // Officer upload containers come from the single officer registry.
-var containerNames = map(loadJsonContent('officers.json').officers, o => o.container)
+var containerNames = map(loadJsonContent('../../../config/officers.json').officers, o => o.container)
 var tags = {
   workload: 'regiq-private-uploads'
   environment: 'poc'

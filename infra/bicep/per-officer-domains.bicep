@@ -58,7 +58,7 @@ var dnsNames = [
   'privatelink.documents.azure.com'
 ]
 
-module dns './native/dns.bicep' = [for name in dnsNames: {
+module dns './modules/dns.bicep' = [for name in dnsNames: {
   name: 'native-dns-${uniqueString(deployment().name, name)}'
   params: {
     name: name
@@ -70,7 +70,7 @@ resource blobDns 'Microsoft.Network/privateDnsZones@2024-06-01' existing = {
   name: 'privatelink.blob.${environment().suffixes.storage}'
 }
 
-module domains './native/domain.bicep' = [for (officer, i) in officers: {
+module domains './modules/domain.bicep' = [for (officer, i) in officers: {
   name: 'native-officer-${officer.key}-${uniqueString(deployment().name)}'
   params: {
     location: location
